@@ -1,0 +1,12 @@
+.DS_Store
+outputs/
+build/
+DerivedData/
+*.app
+*.zip
+work/probe
+work/clang-cache/
+work/openmtp-reference/
+work/platform-tools-*/
+*.o
+*.dSYM/

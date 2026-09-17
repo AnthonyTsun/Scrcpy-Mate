@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
+  <key>CFBundleDisplayName</key><string>Scrcpy Mate</string>
+  <key>CFBundleExecutable</key><string>ScrcpyMate</string>
+  <key>CFBundleIconFile</key><string>AppIcon.png</string>
+  <key>CFBundleIdentifier</key><string>app.scrcpymate.desktop</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleName</key><string>Scrcpy Mate</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>9.6</string>
+  <key>CFBundleVersion</key><string>51</string>
+  <key>NSLocalNetworkUsageDescription</key><string>用于发现并连接同一 Wi-Fi 网络中的 Android 手机。</string>
+  <key>NSBonjourServices</key><array><string>_adb-tls-pairing._tcp</string><string>_adb-tls-connect._tcp</string></array>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
