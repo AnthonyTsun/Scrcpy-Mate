@@ -10,8 +10,8 @@
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleName</key><string>Scrcpy Mate</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>9.6</string>
-  <key>CFBundleVersion</key><string>51</string>
+  <key>CFBundleShortVersionString</key><string>9.7.1</string>
+  <key>CFBundleVersion</key><string>53</string>
   <key>NSLocalNetworkUsageDescription</key><string>用于发现并连接同一 Wi-Fi 网络中的 Android 手机。</string>
   <key>NSBonjourServices</key><array><string>_adb-tls-pairing._tcp</string><string>_adb-tls-connect._tcp</string></array>
   <key>LSMinimumSystemVersion</key><string>13.0</string>

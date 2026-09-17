@@ -7,6 +7,144 @@
 static AppDelegate *gAppDelegate;
 static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRef event, void *userData);
 
+@interface GlassBackgroundView : NSVisualEffectView
+@end
+
+@implementation GlassBackgroundView
+- (instancetype)initWithFrame:(NSRect)frame {
+    if ((self = [super initWithFrame:frame])) {
+        self.material = NSVisualEffectMaterialUnderWindowBackground;
+        self.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+        self.state = NSVisualEffectStateActive;
+        self.wantsLayer = YES;
+    }
+    return self;
+}
+- (BOOL)mouseDownCanMoveWindow { return YES; }
+- (void)mouseDown:(NSEvent *)event { [self.window performWindowDragWithEvent:event]; }
+- (void)drawRect:(NSRect)dirtyRect {
+    [super drawRect:dirtyRect];
+    NSColor *top = [NSColor colorWithRed:0.20 green:0.48 blue:1 alpha:0.30];
+    NSColor *bottom = [NSColor colorWithRed:0.93 green:0.18 blue:0.58 alpha:0.23];
+    NSGradient *wash = [[NSGradient alloc] initWithStartingColor:top endingColor:bottom];
+    [wash drawInRect:self.bounds angle:-35];
+    [[NSColor colorWithWhite:1 alpha:0.12] setFill];
+    [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(-120, 410, 390, 390)] fill];
+    [[NSColor colorWithRed:0.58 green:0.30 blue:1 alpha:0.12] setFill];
+    [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(470, -100, 360, 360)] fill];
+}
+@end
+
+@interface GlassCardView : NSVisualEffectView
+@end
+
+
+@implementation GlassCardView
+- (instancetype)initWithFrame:(NSRect)frame {
+    if ((self = [super initWithFrame:frame])) {
+        self.material = NSVisualEffectMaterialPopover;
+        self.blendingMode = NSVisualEffectBlendingModeWithinWindow;
+        self.state = NSVisualEffectStateActive;
+        self.wantsLayer = YES;
+        self.layer.cornerRadius = 18;
+        self.layer.masksToBounds = YES;
+        self.layer.borderWidth = 1.0;
+        self.layer.borderColor = [NSColor colorWithWhite:1 alpha:0.46].CGColor;
+        self.layer.shadowColor = NSColor.blackColor.CGColor;
+        self.layer.shadowOpacity = 0.16;
+        self.layer.shadowRadius = 22;
+        self.layer.shadowOffset = CGSizeMake(0, -7);
+    }
+    return self;
+}
+- (BOOL)mouseDownCanMoveWindow { return YES; }
+- (void)mouseDown:(NSEvent *)event { [self.window performWindowDragWithEvent:event]; }
+- (void)drawRect:(NSRect)dirtyRect {
+    [super drawRect:dirtyRect];
+    NSRect inset = NSInsetRect(self.bounds, 1, 1);
+    NSBezierPath *glass = [NSBezierPath bezierPathWithRoundedRect:inset xRadius:17 yRadius:17];
+    NSColor *top = [NSColor colorWithWhite:1 alpha:0.24];
+    NSColor *bottom = [NSColor colorWithWhite:1 alpha:0.075];
+    [[[NSGradient alloc] initWithStartingColor:top endingColor:bottom] drawInBezierPath:glass angle:-90];
+
+    NSBezierPath *shine = [NSBezierPath bezierPath];
+    [shine moveToPoint:NSMakePoint(18, NSHeight(self.bounds)-1.5)];
+    [shine lineToPoint:NSMakePoint(NSWidth(self.bounds)-18, NSHeight(self.bounds)-1.5)];
+    shine.lineWidth = 1.1;
+    [[NSColor colorWithWhite:1 alpha:0.62] setStroke];
+    [shine stroke];
+}
+@end
+
+@interface HeaderPillView : NSView
+@end
+
+@implementation HeaderPillView
+- (BOOL)mouseDownCanMoveWindow { return YES; }
+- (void)mouseDown:(NSEvent *)event { [self.window performWindowDragWithEvent:event]; }
+- (void)drawRect:(NSRect)dirtyRect {
+    [super drawRect:dirtyRect];
+    NSRect rect = NSInsetRect(self.bounds, 1, 1);
+    NSBezierPath *pill = [NSBezierPath bezierPathWithRoundedRect:rect xRadius:NSHeight(rect)/2 yRadius:NSHeight(rect)/2];
+    [[NSColor.controlBackgroundColor colorWithAlphaComponent:0.58] setFill]; [pill fill];
+    pill.lineWidth = 1.0; [[NSColor.separatorColor colorWithAlphaComponent:0.75] setStroke]; [pill stroke];
+    NSBezierPath *shine = [NSBezierPath bezierPath]; [shine moveToPoint:NSMakePoint(22, NSHeight(self.bounds)-2)]; [shine lineToPoint:NSMakePoint(NSWidth(self.bounds)-22, NSHeight(self.bounds)-2)];
+    shine.lineWidth = 0.8; [[NSColor colorWithWhite:1 alpha:0.35] setStroke]; [shine stroke];
+}
+@end
+
+@interface BrandArtworkView : NSView
+@end
+
+@implementation BrandArtworkView
+- (BOOL)mouseDownCanMoveWindow { return YES; }
+- (void)mouseDown:(NSEvent *)event { [self.window performWindowDragWithEvent:event]; }
+- (void)drawRect:(NSRect)dirtyRect {
+    [super drawRect:dirtyRect];
+    NSRect tile = NSInsetRect(self.bounds, 3, 3);
+    NSBezierPath *shape = [NSBezierPath bezierPathWithRoundedRect:tile xRadius:15 yRadius:15];
+    NSGradient *gradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithRed:0.19 green:0.48 blue:1 alpha:1] endingColor:[NSColor colorWithRed:0.92 green:0.18 blue:0.60 alpha:1]];
+    [gradient drawInBezierPath:shape angle:-35];
+    NSShadow *shadow = [NSShadow new]; shadow.shadowColor = [NSColor colorWithWhite:0 alpha:0.20]; shadow.shadowBlurRadius = 12; shadow.shadowOffset = NSMakeSize(0, -3); [shadow set];
+    NSImage *symbol = [NSImage imageWithSystemSymbolName:@"macbook.and.iphone" accessibilityDescription:@"Mac and Android"];
+    symbol = [symbol imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPointSize:29 weight:NSFontWeightSemibold]];
+    [symbol drawInRect:NSInsetRect(self.bounds, 12, 12) fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1 respectFlipped:YES hints:@{NSForegroundColorAttributeName:NSColor.whiteColor}];
+}
+@end
+
+@interface DeviceStatsView : NSView
+@property BOOL connected;
+@property NSInteger battery;
+@property CGFloat memoryFraction, storageFraction;
+@property NSString *memoryText, *storageText, *emptyText;
+@end
+
+@implementation DeviceStatsView
+- (void)drawBar:(NSRect)rect fraction:(CGFloat)fraction color:(NSColor *)color label:(NSString *)label {
+    NSBezierPath *track = [NSBezierPath bezierPathWithRoundedRect:rect xRadius:rect.size.height/2 yRadius:rect.size.height/2];
+    [[NSColor colorWithWhite:0.5 alpha:0.16] setFill]; [track fill];
+    NSRect fill = rect; fill.size.width = MAX(rect.size.height, rect.size.width * MIN(MAX(fraction, 0), 1));
+    [color setFill]; [[NSBezierPath bezierPathWithRoundedRect:fill xRadius:fill.size.height/2 yRadius:fill.size.height/2] fill];
+    NSDictionary *attrs = @{NSFontAttributeName:[NSFont monospacedSystemFontOfSize:9 weight:NSFontWeightMedium], NSForegroundColorAttributeName:NSColor.secondaryLabelColor};
+    [label drawAtPoint:NSMakePoint(NSMaxX(rect)+6, rect.origin.y-2) withAttributes:attrs];
+}
+- (void)drawRect:(NSRect)dirtyRect {
+    [super drawRect:dirtyRect];
+    if (!self.connected) {
+        NSDictionary *attrs = @{NSFontAttributeName:[NSFont systemFontOfSize:10 weight:NSFontWeightMedium], NSForegroundColorAttributeName:NSColor.tertiaryLabelColor};
+        [(self.emptyText ?: @"") drawAtPoint:NSMakePoint(0, 2) withAttributes:attrs]; return;
+    }
+    NSColor *batteryColor = self.battery <= 20 ? NSColor.systemRedColor : (self.battery <= 40 ? NSColor.systemOrangeColor : NSColor.systemGreenColor);
+    NSRect shell = NSMakeRect(0, 3, 31, 13); NSBezierPath *battery = [NSBezierPath bezierPathWithRoundedRect:shell xRadius:3 yRadius:3]; battery.lineWidth = 1.2; [NSColor.secondaryLabelColor setStroke]; [battery stroke];
+    [batteryColor setFill]; NSRect charge = NSInsetRect(shell, 2.2, 2.2); charge.size.width = MAX(2, charge.size.width * MIN(MAX(self.battery/100.0, 0), 1)); [[NSBezierPath bezierPathWithRoundedRect:charge xRadius:1.5 yRadius:1.5] fill];
+    [NSColor.secondaryLabelColor setFill]; [[NSBezierPath bezierPathWithRoundedRect:NSMakeRect(32, 7, 2, 5) xRadius:1 yRadius:1] fill];
+    NSDictionary *pct = @{NSFontAttributeName:[NSFont monospacedSystemFontOfSize:9 weight:NSFontWeightSemibold], NSForegroundColorAttributeName:NSColor.labelColor};
+    [[NSString stringWithFormat:@"%ld%%", (long)self.battery] drawAtPoint:NSMakePoint(39, 2) withAttributes:pct];
+    [self drawBar:NSMakeRect(76, 7, 43, 6) fraction:self.memoryFraction color:NSColor.systemBlueColor label:self.memoryText ?: @"RAM"];
+    [self drawBar:NSMakeRect(205, 7, 43, 6) fraction:self.storageFraction color:NSColor.systemPurpleColor label:self.storageText ?: @"SSD"];
+}
+@end
+
 @protocol DropHandler <NSObject>
 - (void)handleDroppedURLs:(NSArray<NSURL *> *)urls;
 @end
@@ -27,7 +165,8 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 @property NSWindow *window;
 @property NSPopUpButton *devices, *audio, *quality;
 @property NSTextField *wifi, *target, *status;
-@property NSButton *stayAwake, *screenOff, *alwaysOnTop, *keyboardControl, *mouseControl, *autoWiFi, *dexMode, *startButton;
+@property DeviceStatsView *deviceStats;
+@property NSButton *stayAwake, *screenOff, *alwaysOnTop, *keyboardControl, *mouseControl, *autoWiFi, *dexMode, *startButton, *hideAfterStart;
 @property NSButton *wirelessButton;
 @property NSTask *mirrorTask;
 @property NSMutableString *mirrorLog;
@@ -67,6 +206,9 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 @property EventHotKeyRef emergencyHotKey;
 @property EventHotKeyRef panelHotKey, inputLanguageHotKey;
 @property NSStatusItem *statusItem;
+@property NSMenu *statusMenu;
+@property NSMenuItem *menuDevice, *menuStats;
+@property NSTimer *deviceStatsTimer;
 - (void)handleDroppedURLs:(NSArray<NSURL *> *)urls;
 @end
 
@@ -109,13 +251,18 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     };
     NSString *symbol = icons[title];
     if (symbol) b.image = [NSImage imageWithSystemSymbolName:symbol accessibilityDescription:title];
+    if ([title containsString:@"镜像"] || [title isEqualToString:@"连接"]) {
+        b.bezelColor = NSColor.systemBlueColor; b.contentTintColor = NSColor.whiteColor;
+    } else if ([title isEqualToString:@"QR"] || [title isEqualToString:@"配对码"]) {
+        b.contentTintColor = NSColor.systemPurpleColor;
+    } else if ([title containsString:@"文件"] || [title containsString:@"粘贴图片"]) {
+        b.contentTintColor = NSColor.systemIndigoColor;
+    }
     return b;
 }
 
-- (NSBox *)card:(NSRect)frame {
-    NSBox *box = [[NSBox alloc] initWithFrame:frame]; box.boxType = NSBoxCustom; box.title = @"";
-    box.cornerRadius = 14; box.borderWidth = 1; box.borderColor = [NSColor separatorColor];
-    box.fillColor = NSColor.controlBackgroundColor; return box;
+- (NSView *)card:(NSRect)frame {
+    return [[GlassCardView alloc] initWithFrame:frame];
 }
 
 - (NSImage *)applicationIcon {
@@ -136,26 +283,33 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)note {
-    self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 700, 680)
-        styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskMiniaturizable
+    self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 700, 708)
+        styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskFullSizeContentView
         backing:NSBackingStoreBuffered defer:NO];
-    self.window.title = @"Scrcpy Mate 9.6";
+    self.window.title = @"Scrcpy Mate 9.7.1";
     self.window.delegate = self;
     self.window.titlebarAppearsTransparent = YES; self.window.titleVisibility = NSWindowTitleHidden;
-    self.window.backgroundColor = NSColor.windowBackgroundColor;
+    self.window.backgroundColor = NSColor.clearColor;
+    self.window.opaque = NO;
+    self.window.movableByWindowBackground = YES;
+    if (@available(macOS 11.0, *)) self.window.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
     [self.window center];
-    NSView *c = self.window.contentView;
+    GlassBackgroundView *c = [[GlassBackgroundView alloc] initWithFrame:NSMakeRect(0, 0, 700, 708)];
+    c.autoresizingMask = NSViewWidthSizable|NSViewHeightSizable;
+    self.window.contentView = c;
 
     NSImage *appIcon = [self applicationIcon]; NSApp.applicationIconImage = appIcon;
-    NSImageView *mark = [[NSImageView alloc] initWithFrame:NSMakeRect(28, 620, 42, 42)]; mark.image = appIcon; [c addSubview:mark];
+    BrandArtworkView *mark = [[BrandArtworkView alloc] initWithFrame:NSMakeRect(24, 614, 52, 52)]; [c addSubview:mark];
     [c addSubview:[self card:NSMakeRect(18, 490, 664, 104)]];
     [c addSubview:[self card:NSMakeRect(18, 187, 664, 290)]];
     [c addSubview:[self card:NSMakeRect(18, 96, 664, 78)]];
     [c addSubview:[self card:NSMakeRect(18, 20, 664, 58)]];
+    [c addSubview:[[HeaderPillView alloc] initWithFrame:NSMakeRect(432, 614, 250, 50)]];
 
-    NSTextField *title = [self label:@"Scrcpy Mate" frame:NSMakeRect(80, 625, 300, 34)];
-    title.font = [NSFont boldSystemFontOfSize:25]; [c addSubview:title];
-    NSTextField *sub = [self label:@"让手机和 Mac 更自然地一起用" frame:NSMakeRect(81, 602, 400, 22)];
+    NSTextField *title = [self label:@"Scrcpy Mate" frame:NSMakeRect(88, 627, 300, 34)];
+    title.font = [NSFont systemFontOfSize:26 weight:NSFontWeightBold]; [c addSubview:title];
+    NSTextField *version = [self label:@"9.7.1" frame:NSMakeRect(272, 635, 52, 20)]; version.font = [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightSemibold]; version.textColor = NSColor.secondaryLabelColor; version.alignment = NSTextAlignmentCenter; version.wantsLayer = YES; version.layer.cornerRadius = 8; version.layer.backgroundColor = [NSColor.controlBackgroundColor colorWithAlphaComponent:0.55].CGColor; [c addSubview:version];
+    NSTextField *sub = [self label:@"让手机和 Mac 更自然地一起用" frame:NSMakeRect(89, 602, 350, 22)];
     sub.textColor = NSColor.secondaryLabelColor; [c addSubview:sub];
     self.language = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(445, 625, 95, 26) pullsDown:NO]; [self.language addItemsWithTitles:@[@"中文", @"English"]]; self.language.target = self; self.language.action = @selector(changeLanguage:); [c addSubview:self.language];
     self.theme = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(545, 625, 120, 26) pullsDown:NO]; [self.theme addItemsWithTitles:@[@"跟随系统", @"浅色", @"深色"]]; self.theme.target = self; self.theme.action = @selector(changeTheme:); [c addSubview:self.theme];
@@ -187,6 +341,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     self.keyboardControl = [self check:@"电脑键盘控制手机" y:348]; self.keyboardControl.state = NSControlStateValueOn; self.keyboardControl.target = self; self.keyboardControl.action = @selector(mirrorSettingChanged:); [c addSubview:self.keyboardControl];
     NSTextField *wifiNote = [self label:@"USB 连接后会在后台验证 Wi‑Fi；成功后出现“无线镜像”。" frame:NSMakeRect(390, 348, 270, 35)]; wifiNote.font = [NSFont systemFontOfSize:11]; wifiNote.textColor = NSColor.secondaryLabelColor; wifiNote.maximumNumberOfLines = 2; [c addSubview:wifiNote];
     self.mouseControl = [self check:@"电脑鼠标控制手机" y:320]; self.mouseControl.state = NSControlStateValueOn; self.mouseControl.target = self; self.mouseControl.action = @selector(mirrorSettingChanged:); [c addSubview:self.mouseControl];
+    self.hideAfterStart = [[NSButton alloc] initWithFrame:NSMakeRect(390, 316, 260, 24)]; self.hideAfterStart.title = @"镜像启动后隐藏控制面板"; self.hideAfterStart.buttonType = NSButtonTypeSwitch; self.hideAfterStart.state = [NSUserDefaults.standardUserDefaults objectForKey:@"HideAfterMirrorStart"] ? [NSUserDefaults.standardUserDefaults boolForKey:@"HideAfterMirrorStart"] : NSControlStateValueOn; self.hideAfterStart.target = self; self.hideAfterStart.action = @selector(hideAfterStartChanged:); [c addSubview:self.hideAfterStart];
     self.stayAwake = [self check:@"保持手机唤醒" y:292]; self.stayAwake.state = NSControlStateValueOn; self.stayAwake.target = self; self.stayAwake.action = @selector(mirrorSettingChanged:); [c addSubview:self.stayAwake];
     self.screenOff = [self check:@"镜像时关闭手机屏幕" y:236]; self.screenOff.target = self; self.screenOff.action = @selector(screenPowerChanged:); [c addSubview:self.screenOff];
     self.alwaysOnTop = [self check:@"窗口保持最前" y:208]; self.alwaysOnTop.target = self; self.alwaysOnTop.action = @selector(mirrorSettingChanged:); [c addSubview:self.alwaysOnTop];
@@ -202,16 +357,22 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     DropView *drop = [[DropView alloc] initWithFrame:NSMakeRect(155, 101, 345, 30)]; drop.handler = self; [c addSubview:drop];
     [c addSubview:[self button:@"粘贴图片" frame:NSMakeRect(515, 102, 140, 28) action:@selector(pasteImageToPhone:)]];
 
-    self.status = [self label:@"正在查找手机…" frame:NSMakeRect(30, 35, 470, 30)]; self.status.textColor = NSColor.secondaryLabelColor; [c addSubview:self.status];
+    self.status = [self label:@"正在查找手机…" frame:NSMakeRect(30, 46, 470, 22)]; self.status.textColor = NSColor.secondaryLabelColor; [c addSubview:self.status];
+    self.deviceStats = [[DeviceStatsView alloc] initWithFrame:NSMakeRect(30, 25, 335, 18)];
+    self.deviceStats.emptyText = @"电量、内存与存储信息会在连接后显示"; [c addSubview:self.deviceStats];
     self.wirelessButton = [self button:@"无线镜像" frame:NSMakeRect(375, 30, 135, 36) action:@selector(startWirelessMirror:)]; self.wirelessButton.hidden = YES; self.wirelessButton.bezelColor = NSColor.systemBlueColor; [c addSubview:self.wirelessButton];
     self.startButton = [self button:@"开始镜像" frame:NSMakeRect(520, 30, 135, 36) action:@selector(toggleMirror:)]; self.startButton.keyEquivalent = @"\r"; self.startButton.bezelColor = NSColor.systemRedColor; [c addSubview:self.startButton];
     [self.window makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES];
-    [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+    // Keep a Dock fallback in addition to the status item, so hiding or closing
+    // the panel can never leave the user without a way back into the app.
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
     [self setupStatusItem];
+    self.deviceStatsTimer = [NSTimer scheduledTimerWithTimeInterval:12.0 target:self selector:@selector(updateDeviceStats:) userInfo:nil repeats:YES];
     self.extraTasks = [NSMutableArray array];
     [self setupEmbeddedTools];
     self.englishUI = [NSUserDefaults.standardUserDefaults boolForKey:@"EnglishUI"];
     [self.language selectItemAtIndex:self.englishUI ? 1 : 0];
+    [self rebuildStatusMenu];
     NSInteger savedTheme = [NSUserDefaults.standardUserDefaults integerForKey:@"ThemeMode"];
     [self.theme selectItemAtIndex:MIN(MAX(savedTheme, 0), 2)]; [self changeTheme:self.theme];
     if (self.englishUI) [self applyLanguageToView:self.window.contentView];
@@ -231,15 +392,41 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 }
 
 - (void)setupStatusItem {
-    self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSSquareStatusItemLength];
+    self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSVariableStatusItemLength];
     self.statusItem.button.image = [NSImage imageWithSystemSymbolName:@"iphone.and.arrow.forward" accessibilityDescription:@"Scrcpy Mate"];
+    self.statusItem.button.imagePosition = NSImageLeading;
+    self.statusItem.button.target = self; self.statusItem.button.action = @selector(showStatusMenu:);
+    [self.statusItem.button sendActionOn:NSEventMaskLeftMouseUp|NSEventMaskRightMouseUp];
+    [self rebuildStatusMenu];
+}
+
+- (void)showStatusMenu:(id)sender {
+    [self updateDeviceStats:nil];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    [self.statusItem popUpStatusItemMenu:self.statusMenu];
+#pragma clang diagnostic pop
+}
+
+- (void)rebuildStatusMenu {
     NSMenu *menu = [NSMenu new];
-    NSMenuItem *show = [[NSMenuItem alloc] initWithTitle:@"显示／隐藏 Scrcpy Mate" action:@selector(toggleControlPanel:) keyEquivalent:@""]; show.target = self; [menu addItem:show];
-    NSMenuItem *input = [[NSMenuItem alloc] initWithTitle:@"切换 Mac 输入语言  ⌃⌥Space" action:@selector(toggleInputLanguage:) keyEquivalent:@""]; input.target = self; [menu addItem:input];
-    NSMenuItem *mirror = [[NSMenuItem alloc] initWithTitle:@"开始／停止镜像" action:@selector(toggleMirror:) keyEquivalent:@""]; mirror.target = self; [menu addItem:mirror];
+    NSString *(^L)(NSString *, NSString *) = ^NSString *(NSString *zh, NSString *en) { return self.englishUI ? en : zh; };
+    NSMenuItem *heading = [[NSMenuItem alloc] initWithTitle:@"Scrcpy Mate" action:nil keyEquivalent:@""]; heading.image = [NSImage imageWithSystemSymbolName:@"iphone.and.arrow.forward" accessibilityDescription:nil]; [menu addItem:heading];
+    self.menuDevice = [[NSMenuItem alloc] initWithTitle:L(@"未连接手机", @"No phone connected") action:nil keyEquivalent:@""]; [menu addItem:self.menuDevice];
+    self.menuStats = [[NSMenuItem alloc] initWithTitle:L(@"连接后显示电量、内存与存储", @"Battery, memory and storage appear after connection") action:nil keyEquivalent:@""]; [menu addItem:self.menuStats];
     [menu addItem:NSMenuItem.separatorItem];
-    NSMenuItem *quit = [[NSMenuItem alloc] initWithTitle:@"退出 Scrcpy Mate" action:@selector(terminate:) keyEquivalent:@"q"]; [menu addItem:quit];
-    self.statusItem.menu = menu;
+    NSMenuItem *show = [[NSMenuItem alloc] initWithTitle:L(@"显示／隐藏控制面板", @"Show / Hide Control Panel") action:@selector(toggleControlPanel:) keyEquivalent:@"m"]; show.keyEquivalentModifierMask = NSEventModifierFlagCommand|NSEventModifierFlagShift; show.target = self; show.image = [NSImage imageWithSystemSymbolName:@"slider.horizontal.3" accessibilityDescription:nil]; [menu addItem:show];
+    NSMenuItem *input = [[NSMenuItem alloc] initWithTitle:L(@"切换 Mac 输入语言", @"Switch Mac Input Language") action:@selector(toggleInputLanguage:) keyEquivalent:@" "]; input.keyEquivalentModifierMask = NSEventModifierFlagControl|NSEventModifierFlagOption; input.target = self; input.image = [NSImage imageWithSystemSymbolName:@"globe" accessibilityDescription:nil]; [menu addItem:input];
+    NSMenuItem *mirror = [[NSMenuItem alloc] initWithTitle:L(@"开始／停止镜像", @"Start / Stop Mirror") action:@selector(toggleMirror:) keyEquivalent:@"s"]; mirror.keyEquivalentModifierMask = NSEventModifierFlagCommand|NSEventModifierFlagShift; mirror.target = self; mirror.image = [NSImage imageWithSystemSymbolName:@"play.rectangle" accessibilityDescription:nil]; [menu addItem:mirror];
+    NSMenuItem *refresh = [[NSMenuItem alloc] initWithTitle:L(@"刷新设备信息", @"Refresh Device Info") action:@selector(refresh:) keyEquivalent:@"r"]; refresh.keyEquivalentModifierMask = NSEventModifierFlagCommand; refresh.target = self; refresh.image = [NSImage imageWithSystemSymbolName:@"arrow.clockwise" accessibilityDescription:nil]; [menu addItem:refresh];
+    [menu addItem:NSMenuItem.separatorItem];
+    NSMenuItem *hint = [[NSMenuItem alloc] initWithTitle:L(@"紧急停止直通：⌃⌥⌘Esc", @"Emergency passthrough release: ⌃⌥⌘Esc") action:nil keyEquivalent:@""]; [menu addItem:hint];
+    NSMenuItem *quit = [[NSMenuItem alloc] initWithTitle:L(@"退出 Scrcpy Mate", @"Quit Scrcpy Mate") action:@selector(terminate:) keyEquivalent:@"q"]; quit.image = [NSImage imageWithSystemSymbolName:@"power" accessibilityDescription:nil]; [menu addItem:quit];
+    self.statusMenu = menu;
+}
+
+- (void)hideAfterStartChanged:(NSButton *)sender {
+    [NSUserDefaults.standardUserDefaults setBool:sender.state == NSControlStateValueOn forKey:@"HideAfterMirrorStart"];
 }
 
 - (void)toggleControlPanel:(id)sender {
@@ -268,6 +455,10 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 }
 
 - (BOOL)windowShouldClose:(NSWindow *)sender { [sender orderOut:nil]; return NO; }
+- (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
+    if (!flag) { [self.window makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES]; }
+    return YES;
+}
 
 - (NSDictionary<NSString *, NSString *> *)translations {
     return @{
@@ -276,6 +467,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
         @"声音 / Mic":@"Audio / Mic", @"手机系统声音 → 电脑":@"Phone audio → Mac", @"手机和电脑同时播放":@"Play on phone and Mac", @"手机麦克风 → 电脑":@"Phone mic → Mac", @"静音":@"Mute",
         @"可切换手机声音或手机 Mic；电脑 Mic → 手机需要额外虚拟音频驱动。":@"Switch phone audio or microphone; Mac mic to phone requires a virtual audio driver.",
         @"画面与输入":@"Display & Input", @"自动":@"Auto", @"电脑键盘控制手机":@"Mac keyboard controls phone", @"电脑鼠标控制手机":@"Mac mouse controls phone", @"保持手机唤醒":@"Keep phone awake",
+        @"镜像启动后隐藏控制面板":@"Hide control panel after mirror starts",
         @"DeX 固定桌面（16:9）":@"DeX fixed desktop (16:9)", @"镜像时关闭手机屏幕":@"Turn phone screen off", @"窗口保持最前":@"Keep mirror on top",
         @"字体大小：标准":@"Text size: Standard", @"字体大小：较大":@"Text size: Large", @"字体大小：特大":@"Text size: Extra large",
         @"默认使用安全输入，不会锁住 Mac 键盘和鼠标。":@"Safe input is used by default and will not capture Mac controls.",
@@ -288,6 +480,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
         @"应用":@"Apps", @"自动适配":@"Auto fit", @"DeX 桌面":@"DeX desktop", @"手机竖屏":@"Phone portrait",
         @"双击启动应用 · 文件可拖入镜像窗口":@"Double-click an app · Drag files into the mirror window",
         @"Mac":@"Mac", @"手机":@"Phone", @"返回上级":@"Up", @"上传 →":@"Upload →", @"← 下载":@"← Download", @"新建文件夹":@"New Folder",
+        @"电量、内存与存储信息会在连接后显示":@"Battery, memory and storage appear after connection",
         @"双击文件夹进入；选择项目后用中间按钮双向传输":@"Double-click folders; select an item and use the centre buttons to transfer."
     };
 }
@@ -310,6 +503,8 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 - (void)changeLanguage:(NSPopUpButton *)sender {
     self.englishUI = sender.indexOfSelectedItem == 1; [NSUserDefaults.standardUserDefaults setBool:self.englishUI forKey:@"EnglishUI"];
     [self applyLanguageToView:self.window.contentView];
+    [self rebuildStatusMenu];
+    [self updateDeviceStats:nil];
 }
 
 - (void)changeTheme:(NSPopUpButton *)sender {
@@ -327,6 +522,108 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 }
 
 - (NSString *)serial { return self.devices.selectedItem.representedObject ?: @""; }
+
+- (NSString *)valueForKey:(NSString *)key inColonLines:(NSString *)text {
+    for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+        NSString *trimmed = [line stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+        NSString *prefix = [key stringByAppendingString:@":"];
+        if ([trimmed hasPrefix:prefix]) return [[trimmed substringFromIndex:prefix.length] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+    }
+    return @"";
+}
+
+- (NSArray<NSString *> *)words:(NSString *)line {
+    NSMutableArray *values = [NSMutableArray array];
+    for (NSString *word in [line componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet]) if (word.length) [values addObject:word];
+    return values;
+}
+
+- (NSArray<NSNumber *> *)cpuCountersFromProcStat:(NSString *)text {
+    NSString *first = [text componentsSeparatedByString:@"\n"].firstObject ?: @"";
+    NSArray *parts = [self words:first]; NSMutableArray *numbers = [NSMutableArray array];
+    if (parts.count < 5 || ![parts[0] isEqualToString:@"cpu"]) return numbers;
+    for (NSUInteger i = 1; i < parts.count; i++) [numbers addObject:@([parts[i] longLongValue])];
+    return numbers;
+}
+
+- (NSInteger)cpuPercentFromBefore:(NSArray<NSNumber *> *)before after:(NSArray<NSNumber *> *)after {
+    if (before.count < 4 || before.count != after.count) return -1;
+    unsigned long long totalBefore = 0, totalAfter = 0;
+    for (NSNumber *n in before) totalBefore += n.unsignedLongLongValue;
+    for (NSNumber *n in after) totalAfter += n.unsignedLongLongValue;
+    unsigned long long idleBefore = before[3].unsignedLongLongValue + (before.count > 4 ? before[4].unsignedLongLongValue : 0);
+    unsigned long long idleAfter = after[3].unsignedLongLongValue + (after.count > 4 ? after[4].unsignedLongLongValue : 0);
+    unsigned long long delta = totalAfter-totalBefore; if (!delta) return -1;
+    return (NSInteger)llround(100.0 * (delta-(idleAfter-idleBefore)) / delta);
+}
+
+- (NSInteger)cpuPercentFromDumpsys:(NSString *)text {
+    for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+        NSString *trimmed = [line stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+        NSRange marker = [trimmed rangeOfString:@"% TOTAL:"];
+        if (marker.location != NSNotFound) return [[trimmed substringToIndex:marker.location] integerValue];
+    }
+    return -1;
+}
+
+- (void)updateDeviceStats:(id)sender {
+    NSString *serial = self.serial;
+    if (!serial.length || [self.devices.titleOfSelectedItem containsString:@"未找到"] || [self.devices.titleOfSelectedItem containsString:@"No device"]) {
+        self.deviceStats.connected = NO;
+        self.deviceStats.emptyText = self.englishUI ? @"Battery, memory and storage appear after connection" : @"电量、内存与存储信息会在连接后显示";
+        [self.deviceStats setNeedsDisplay:YES];
+        self.menuDevice.title = self.englishUI ? @"No phone connected" : @"未连接手机";
+        self.menuStats.title = self.deviceStats.emptyText;
+        self.statusItem.button.title = @"";
+        self.statusItem.button.image = [NSImage imageWithSystemSymbolName:@"iphone.slash" accessibilityDescription:nil];
+        self.statusItem.button.toolTip = self.menuStats.title;
+        return;
+    }
+    NSString *deviceName = self.devices.titleOfSelectedItem ?: serial;
+    NSString *adb = [self tool:@"adb"];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSString *battery = [self run:adb args:@[@"-s", serial, @"shell", @"dumpsys", @"battery"]][@"text"];
+        NSString *memory = [self run:adb args:@[@"-s", serial, @"shell", @"cat", @"/proc/meminfo"]][@"text"];
+        NSString *storage = [self run:adb args:@[@"-s", serial, @"shell", @"df", @"-k", @"/data"]][@"text"];
+        NSArray *cpuBefore = [self cpuCountersFromProcStat:[self run:adb args:@[@"-s", serial, @"shell", @"cat", @"/proc/stat"]][@"text"]];
+        [NSThread sleepForTimeInterval:0.25];
+        NSArray *cpuAfter = [self cpuCountersFromProcStat:[self run:adb args:@[@"-s", serial, @"shell", @"cat", @"/proc/stat"]][@"text"]];
+        NSInteger cpuPercent = [self cpuPercentFromBefore:cpuBefore after:cpuAfter];
+        if (cpuPercent < 0) cpuPercent = [self cpuPercentFromDumpsys:[self run:adb args:@[@"-s", serial, @"shell", @"dumpsys", @"cpuinfo"]][@"text"]];
+        NSInteger level = [[self valueForKey:@"level" inColonLines:battery] integerValue];
+        CGFloat temperature = [[self valueForKey:@"temperature" inColonLines:battery] doubleValue] / 10.0;
+        double totalKB = [[[self valueForKey:@"MemTotal" inColonLines:memory] componentsSeparatedByString:@" "].firstObject doubleValue];
+        double availableKB = [[[self valueForKey:@"MemAvailable" inColonLines:memory] componentsSeparatedByString:@" "].firstObject doubleValue];
+        NSArray *storageLines = [storage componentsSeparatedByString:@"\n"]; NSArray *disk = @[];
+        for (NSString *line in storageLines) { NSArray *candidate = [self words:line]; if (candidate.count >= 6 && ![candidate[0] hasPrefix:@"Filesystem"]) disk = candidate; }
+        double diskTotalKB = disk.count >= 6 ? [disk[disk.count-5] doubleValue] : 0;
+        double diskUsedKB = disk.count >= 6 ? [disk[disk.count-4] doubleValue] : 0;
+        double usedGB = MAX(0, totalKB-availableKB)/1048576.0, totalGB = totalKB/1048576.0;
+        double storageUsedGB = diskUsedKB/1048576.0, storageTotalGB = diskTotalKB/1048576.0;
+        NSString *link = [serial containsString:@":"] || [serial hasPrefix:@"127.0.0.1:"] ? @"Wi‑Fi" : @"USB";
+        NSString *summary = self.englishUI
+            ? [NSString stringWithFormat:@"🔋 %ld%%  ·  CPU %@  ·  RAM %.1f/%.1f GB  ·  Storage %.0f/%.0f GB  ·  %@", (long)level, cpuPercent >= 0 ? [NSString stringWithFormat:@"%ld%%", (long)cpuPercent] : @"—", usedGB, totalGB, storageUsedGB, storageTotalGB, link]
+            : [NSString stringWithFormat:@"🔋 %ld%%  ·  CPU %@  ·  内存 %.1f/%.1f GB  ·  存储 %.0f/%.0f GB  ·  %@", (long)level, cpuPercent >= 0 ? [NSString stringWithFormat:@"%ld%%", (long)cpuPercent] : @"—", usedGB, totalGB, storageUsedGB, storageTotalGB, link];
+        if (temperature > 0) summary = [summary stringByAppendingFormat:@"  ·  %.1f°C", temperature];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (![self.serial isEqualToString:serial]) return;
+            self.deviceStats.connected = YES; self.deviceStats.battery = level;
+            self.deviceStats.memoryFraction = totalKB > 0 ? (totalKB-availableKB)/totalKB : 0;
+            self.deviceStats.storageFraction = diskTotalKB > 0 ? diskUsedKB/diskTotalKB : 0;
+            self.deviceStats.memoryText = [NSString stringWithFormat:@"CPU %@ · %.0f%%", cpuPercent >= 0 ? [NSString stringWithFormat:@"%ld%%", (long)cpuPercent] : @"—", totalKB > 0 ? (totalKB-availableKB)*100.0/totalKB : 0];
+            self.deviceStats.storageText = [NSString stringWithFormat:@"%.0f/%.0fG", storageUsedGB, storageTotalGB];
+            [self.deviceStats setNeedsDisplay:YES];
+            self.menuDevice.title = [NSString stringWithFormat:@"%@  ·  %@", deviceName, link];
+            self.menuStats.title = summary;
+            NSString *batterySymbol = level <= 20 ? @"battery.25" : (level <= 50 ? @"battery.50" : (level <= 75 ? @"battery.75" : @"battery.100"));
+            self.menuStats.image = [NSImage imageWithSystemSymbolName:batterySymbol accessibilityDescription:nil];
+            self.statusItem.button.image = [NSImage imageWithSystemSymbolName:batterySymbol accessibilityDescription:nil];
+            NSInteger ramPercent = totalKB > 0 ? lround((totalKB-availableKB)*100.0/totalKB) : 0;
+            self.statusItem.button.title = [NSString stringWithFormat:@" %ld%% · CPU %@ · RAM %ld%%", (long)level, cpuPercent >= 0 ? [NSString stringWithFormat:@"%ld%%", (long)cpuPercent] : @"—", (long)ramPercent];
+            self.statusItem.button.toolTip = [NSString stringWithFormat:@"%@\n%@", deviceName, summary];
+        });
+    });
+}
 
 - (void)refresh:(id)sender {
     if (sender) self.autoWiFiAttemptedSerial = nil;
@@ -351,6 +648,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
             [self deviceSelectionChanged:nil];
             for (NSDictionary *d in found) if ([d[@"serial"] containsString:@":"]) { self.wifi.stringValue = d[@"serial"]; [NSUserDefaults.standardUserDefaults setObject:d[@"serial"] forKey:@"LastWiFiAddress"]; }
             self.status.stringValue = found.count ? [NSString stringWithFormat:@"已找到 %lu 台设备", (unsigned long)found.count] : @"未找到设备：可连接 USB，或输入 Wi‑Fi 的 IP:端口后连接";
+            [self updateDeviceStats:nil];
             if (found.count) [self showEmbeddedTools];
             for (NSDictionary *d in found) {
                 NSString *serial = d[@"serial"];
@@ -367,6 +665,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     self.dexScale.hidden = !samsung;
     self.dexScaleValue.hidden = !samsung;
     if (!samsung) self.dexMode.state = NSControlStateValueOff;
+    [self updateDeviceStats:nil];
 }
 
 - (void)autoSwitchToWiFi:(NSString *)serial {
@@ -815,7 +1114,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
             });
         }
     }); };
-    NSError *error; if ([self.mirrorTask launchAndReturnError:&error]) { NSTask *launchedTask = self.mirrorTask; self.startButton.title = @"停止镜像"; self.status.stringValue = usingWireless ? @"无线镜像运行中；低延迟画面与稳定音频已启用" : @"镜像运行中；拖动窗口边缘即可缩放"; dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 700 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{ if (launchedTask.running) [self.window orderOut:nil]; }); dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 4 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ [self refresh:nil]; }); dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ if (self.mirrorTask == launchedTask && launchedTask.running) self.reconnectAttempts = 0; }); } else self.status.stringValue = error.localizedDescription;
+    NSError *error; if ([self.mirrorTask launchAndReturnError:&error]) { NSTask *launchedTask = self.mirrorTask; self.startButton.title = @"停止镜像"; self.status.stringValue = usingWireless ? @"无线镜像运行中；低延迟画面与稳定音频已启用" : @"镜像运行中；拖动窗口边缘即可缩放"; [self updateDeviceStats:nil]; if (self.hideAfterStart.state == NSControlStateValueOn) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 120 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{ if (launchedTask.running) [self.window orderOut:nil]; }); dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ [self updateDeviceStats:nil]; }); dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ if (self.mirrorTask == launchedTask && launchedTask.running) self.reconnectAttempts = 0; }); } else self.status.stringValue = error.localizedDescription;
 }
 
 - (void)startWirelessMirror:(id)sender {
