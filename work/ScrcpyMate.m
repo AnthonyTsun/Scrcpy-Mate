@@ -31,13 +31,14 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 }
 @end
 
-@interface SettingsSidebarView : NSView
+@interface SettingsSidebarView : NSVisualEffectView
 @end
 
 @implementation SettingsSidebarView
 - (instancetype)initWithFrame:(NSRect)frame {
     if ((self = [super initWithFrame:frame])) {
-        self.wantsLayer = YES;
+        self.material = NSVisualEffectMaterialSidebar; self.blendingMode = NSVisualEffectBlendingModeWithinWindow;
+        self.state = NSVisualEffectStateFollowsWindowActiveState; self.wantsLayer = YES;
         self.layer.borderWidth = 0; self.layer.backgroundColor = NSColor.clearColor.CGColor;
     }
     return self;
@@ -45,29 +46,11 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 - (BOOL)mouseDownCanMoveWindow { return YES; }
 - (void)mouseDown:(NSEvent *)event { [self.window performWindowDragWithEvent:event]; }
 - (void)drawRect:(NSRect)dirtyRect {
+    [super drawRect:dirtyRect];
     BOOL dark = [[[self effectiveAppearance] bestMatchFromAppearancesWithNames:@[NSAppearanceNameDarkAqua, NSAppearanceNameAqua]] isEqualToString:NSAppearanceNameDarkAqua];
-    NSColor *top = dark ? [NSColor colorWithRed:0.14 green:0.18 blue:0.24 alpha:1] : [NSColor colorWithRed:0.89 green:0.95 blue:1 alpha:0.98];
-    NSColor *bottom = dark ? [NSColor colorWithRed:0.09 green:0.12 blue:0.18 alpha:1] : [NSColor colorWithRed:0.78 green:0.89 blue:1 alpha:0.94];
-    [[[NSGradient alloc] initWithStartingColor:top endingColor:bottom] drawInRect:self.bounds angle:-75];
-    [[NSColor colorWithWhite:1 alpha:0.34] setFill];
-    [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(-170, 300, 470, 470)] fill];
+    [[NSColor colorWithRed:0.28 green:0.58 blue:1 alpha:dark ? 0.07 : 0.09] setFill]; NSRectFillUsingOperation(self.bounds, NSCompositingOperationSourceOver);
     [[NSColor colorWithWhite:1 alpha:0.56] setStroke];
     NSBezierPath *edge = [NSBezierPath bezierPath]; [edge moveToPoint:NSMakePoint(NSMaxX(self.bounds)-0.5, 0)]; [edge lineToPoint:NSMakePoint(NSMaxX(self.bounds)-0.5, NSMaxY(self.bounds))]; [edge stroke];
-}
-@end
-
-@interface SidebarSearchView : NSView
-@property NSString *placeholder;
-@end
-
-@implementation SidebarSearchView
-- (void)drawRect:(NSRect)dirtyRect {
-    NSBezierPath *pill = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds, 1, 1) xRadius:NSHeight(self.bounds)/2 yRadius:NSHeight(self.bounds)/2];
-    [[NSColor colorWithWhite:1 alpha:0.50] setFill]; [pill fill];
-    NSImage *image = [[NSImage imageWithSystemSymbolName:@"magnifyingglass" accessibilityDescription:nil] imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPointSize:14 weight:NSFontWeightMedium]];
-    [image drawInRect:NSMakeRect(14, 10, 16, 16) fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:0.75 respectFlipped:YES hints:@{NSForegroundColorAttributeName:NSColor.secondaryLabelColor}];
-    NSDictionary *attrs = @{NSFontAttributeName:[NSFont systemFontOfSize:13], NSForegroundColorAttributeName:NSColor.secondaryLabelColor};
-    [(self.placeholder ?: @"搜索") drawAtPoint:NSMakePoint(39, 9) withAttributes:attrs];
 }
 @end
 
@@ -352,6 +335,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 @property NSTimer *deviceStatsTimer;
 @property NSView *settingsSidebar;
 @property NSView *audioCameraPage;
+@property NSSearchField *sidebarSearch;
 @property NSArray<NSView *> *overviewViews;
 @property NSMutableArray<NSView *> *sectionPages;
 @property NSMutableArray<NSButton *> *sidebarButtons;
@@ -453,7 +437,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 
     self.settingsSidebar = [[SettingsSidebarView alloc] initWithFrame:NSMakeRect(0, 0, 232, 760)];
     self.settingsSidebar.autoresizingMask = NSViewHeightSizable; [root addSubview:self.settingsSidebar];
-    SidebarSearchView *search = [[SidebarSearchView alloc] initWithFrame:NSMakeRect(14, 684, 202, 36)]; search.placeholder = @"搜索"; [self.settingsSidebar addSubview:search];
+    self.sidebarSearch = [[NSSearchField alloc] initWithFrame:NSMakeRect(14, 684, 202, 36)]; self.sidebarSearch.placeholderString = @"搜索设置"; self.sidebarSearch.sendsSearchStringImmediately = YES; self.sidebarSearch.sendsWholeSearchString = NO; self.sidebarSearch.target = self; self.sidebarSearch.action = @selector(filterSidebar:); self.sidebarSearch.focusRingType = NSFocusRingTypeNone; [self.settingsSidebar addSubview:self.sidebarSearch];
     NSArray *titles = @[@"概览", @"连接设置", @"画面与输入", @"声音与摄像头", @"文件传输", @"应用", @"工具箱", @"高级设置"];
     NSArray *symbols = @[@"house.fill", @"link", @"display", @"speaker.wave.2.fill", @"folder.fill", @"square.grid.2x2.fill", @"wrench.and.screwdriver.fill", @"gearshape.fill"];
     self.sidebarButtons = [NSMutableArray array];
@@ -484,6 +468,27 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     for (NSInteger i = 0; i < self.sectionPages.count; i++) self.sectionPages[i].hidden = i != sender.tag;
     if (sender.tag == 4) { self.filePanelExpanded = YES; [self refreshLocal:nil]; if (self.serial.length) [self refreshRemote:nil]; }
     if (sender.tag == 5 && self.serial.length) [self openAppLauncher:nil];
+}
+
+- (void)filterSidebar:(NSSearchField *)sender {
+    NSString *query = [sender.stringValue stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].lowercaseString;
+    NSArray *keywords = @[
+        @"概览 overview 首页 状态 电量 cpu 内存 storage battery",
+        @"连接 connection usb wifi 无线 配对 qr",
+        @"画面 显示 输入 display input dex 分辨率 键盘 鼠标 字体",
+        @"声音 摄像头 audio camera 麦克风 mic 扬声器",
+        @"文件 传输 file transfer mtp 上传 下载",
+        @"应用 apps app 启动器 微信 抖音",
+        @"工具箱 toolbox 工具 截图 录屏 电话 短信 快捷键",
+        @"高级 advanced 性能 主题 语言 安全 重试"
+    ];
+    NSInteger visibleIndex = 0; SidebarButton *firstMatch = nil;
+    for (SidebarButton *button in self.sidebarButtons) {
+        NSString *haystack = [NSString stringWithFormat:@"%@ %@", button.title.lowercaseString, keywords[button.tag]];
+        BOOL match = !query.length || [haystack containsString:query]; button.hidden = !match;
+        if (match) { button.frame = NSMakeRect(14, 625-visibleIndex*47, 202, 42); visibleIndex++; if (!firstMatch) firstMatch = button; }
+    }
+    if (query.length && firstMatch) [self selectSettingsSection:firstMatch];
 }
 
 - (void)addPageHeading:(NSString *)title subtitle:(NSString *)subtitle to:(NSView *)page {
@@ -521,8 +526,8 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     NSTextField *smallA = [self label:@"A" frame:NSMakeRect(160, 246, 20, 20)]; smallA.font = [NSFont systemFontOfSize:11]; [page addSubview:smallA]; NSSlider *scale = [[NSSlider alloc] initWithFrame:NSMakeRect(190, 239, 215, 24)]; scale.minValue = 150; scale.maxValue = 240; scale.doubleValue = self.dexScale.doubleValue; scale.target = self; scale.action = @selector(overviewScaleChanged:); [page addSubview:scale]; NSTextField *largeA = [self label:@"A" frame:NSMakeRect(425, 239, 25, 28)]; largeA.font = [NSFont systemFontOfSize:21 weight:NSFontWeightSemibold]; [page addSubview:largeA];
 
     [page addSubview:[self card:NSMakeRect(506, 360, 506, 120)]]; [self addCardTitle:@"声音" symbol:@"speaker.wave.2.fill" x:528 y:438 to:page];
-    [page addSubview:[self label:@"手机声音播放到" frame:NSMakeRect(528, 390, 155, 24)]]; NSSegmentedControl *route = [[ModernSegmentedControl alloc] initWithFrame:NSMakeRect(712, 385, 278, 32)]; route.segmentCount = 2; route.segmentStyle = NSSegmentStyleCapsule; route.selectedSegmentBezelColor = [NSColor colorWithRed:0.08 green:0.49 blue:1 alpha:1]; [route setLabel:@"Mac" forSegment:0]; [route setLabel:@"手机" forSegment:1]; route.selectedSegment = 0; route.target = self; route.action = @selector(overviewAudioChanged:); [page addSubview:route];
-    [page addSubview:[self label:@"麦克风来源" frame:NSMakeRect(528, 352, 155, 24)]]; NSPopUpButton *mic = [self pagePopup:@[@"手机麦克风"] frame:NSMakeRect(712, 347, 278, 30) action:nil]; [page addSubview:mic];
+    [page addSubview:[self label:@"手机声音播放到" frame:NSMakeRect(528, 402, 155, 24)]]; NSSegmentedControl *route = [[ModernSegmentedControl alloc] initWithFrame:NSMakeRect(712, 397, 278, 32)]; route.segmentCount = 2; route.segmentStyle = NSSegmentStyleCapsule; route.selectedSegmentBezelColor = [NSColor colorWithRed:0.08 green:0.49 blue:1 alpha:1]; [route setLabel:@"Mac" forSegment:0]; [route setLabel:@"手机" forSegment:1]; route.selectedSegment = 0; route.target = self; route.action = @selector(overviewAudioChanged:); [page addSubview:route];
+    [page addSubview:[self label:@"麦克风来源" frame:NSMakeRect(528, 365, 155, 24)]]; NSPopUpButton *mic = [self pagePopup:@[@"手机麦克风"] frame:NSMakeRect(712, 360, 278, 30) action:nil]; [page addSubview:mic];
 
     [page addSubview:[self card:NSMakeRect(506, 235, 506, 105)]]; [self addCardTitle:@"设备状态" symbol:@"waveform.path.ecg.rectangle" x:528 y:302 to:page];
     self.overviewDeviceStats = [[DeviceStatsView alloc] initWithFrame:NSMakeRect(535, 250, 430, 48)]; self.overviewDeviceStats.emptyText = @"连接手机后显示电量、CPU、内存与存储"; [page addSubview:self.overviewDeviceStats];
@@ -659,7 +664,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     NSArray *tools = @[@"截图", @"开始录屏", @"手机相机", @"新建镜像"];
     NSArray *toolSymbols = @[@"camera.fill", @"record.circle", @"camera.viewfinder", @"rectangle.on.rectangle"];
     SEL actions[] = {@selector(takeScreenshot:), @selector(toggleRecording:), @selector(startCamera:), @selector(startAdditionalMirror:)};
-    for (NSInteger i = 0; i < tools.count; i++) { NSButton *button = [self button:tools[i] frame:NSMakeRect(22+i*243, 463, 225, 72) action:actions[i]]; button.image = [NSImage imageWithSystemSymbolName:toolSymbols[i] accessibilityDescription:tools[i]]; button.imagePosition = NSImageAbove; button.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium]; if (i == 1) self.recordButton = button; [page addSubview:button]; }
+    for (NSInteger i = 0; i < tools.count; i++) { NSButton *button = [self button:tools[i] frame:NSMakeRect(22+i*243, 474, 225, 56) action:actions[i]]; button.image = [NSImage imageWithSystemSymbolName:toolSymbols[i] accessibilityDescription:tools[i]]; button.imagePosition = NSImageLeading; button.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium]; if (i == 1) self.recordButton = button; [page addSubview:button]; }
 
     [page addSubview:[self card:NSMakeRect(0, 205, 630, 205)]]; [self addCardTitle:@"快速控制" symbol:@"bolt.fill" x:22 y:368 to:page];
     NSArray *controls = @[@"返回", @"主页", @"最近", @"通知", @"音量−", @"音量+", @"锁屏"];
@@ -692,7 +697,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     [page addSubview:[self label:@"主题" frame:NSMakeRect(528, 222, 120, 24)]]; self.theme = [self pagePopup:@[@"跟随系统", @"浅色", @"深色"] frame:NSMakeRect(760, 218, 230, 30) action:@selector(changeTheme:)]; [self.theme selectItemAtIndex:[NSUserDefaults.standardUserDefaults integerForKey:@"ThemeMode"]]; [page addSubview:self.theme];
     NSButton *menuStats = [self pageSwitch:@"菜单栏显示设备状态" frame:NSMakeRect(528, 174, 462, 28) state:YES action:nil]; [page addSubview:menuStats];
 
-    [page addSubview:[self card:NSMakeRect(0, 18, 1012, 105)]]; [self addCardTitle:@"关于" symbol:@"info.circle.fill" x:22 y:80 to:page]; BrandArtworkView *icon = [[BrandArtworkView alloc] initWithFrame:NSMakeRect(190, 38, 55, 55)]; [page addSubview:icon]; NSTextField *about = [self label:@"Scrcpy Mate 10.1\n内置 scrcpy、adb 与开放源代码组件" frame:NSMakeRect(260, 42, 440, 48)]; about.maximumNumberOfLines = 2; about.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium]; [page addSubview:about]; NSButton *notices = [self button:@"开源项目致谢" frame:NSMakeRect(790, 48, 190, 34) action:@selector(showOpenSourceNotices:)]; [page addSubview:notices];
+    [page addSubview:[self card:NSMakeRect(0, 18, 1012, 105)]]; [self addCardTitle:@"关于" symbol:@"info.circle.fill" x:22 y:80 to:page]; BrandArtworkView *icon = [[BrandArtworkView alloc] initWithFrame:NSMakeRect(190, 38, 55, 55)]; [page addSubview:icon]; NSTextField *about = [self label:@"Scrcpy Mate 10.2\n内置 scrcpy、adb 与开放源代码组件" frame:NSMakeRect(260, 42, 440, 48)]; about.maximumNumberOfLines = 2; about.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium]; [page addSubview:about]; NSButton *notices = [self button:@"开源项目致谢" frame:NSMakeRect(790, 48, 190, 34) action:@selector(showOpenSourceNotices:)]; [page addSubview:notices];
 }
 
 - (void)audioRouteChanged:(NSSegmentedControl *)sender { NSInteger map[] = {0, 3, 1}; [self.audio selectItemAtIndex:map[sender.selectedSegment]]; [self mirrorSettingChanged:sender]; }
@@ -726,7 +731,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 700, 708)
         styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskFullSizeContentView
         backing:NSBackingStoreBuffered defer:NO];
-    self.window.title = @"Scrcpy Mate 10.1";
+    self.window.title = @"Scrcpy Mate 10.2";
     self.window.delegate = self;
     self.window.titlebarAppearsTransparent = YES; self.window.titleVisibility = NSWindowTitleHidden;
     self.window.backgroundColor = NSColor.clearColor;
@@ -748,7 +753,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 
     NSTextField *title = [self label:@"Scrcpy Mate" frame:NSMakeRect(88, 627, 300, 34)];
     title.font = [NSFont systemFontOfSize:26 weight:NSFontWeightBold]; [c addSubview:title];
-    NSTextField *version = [self label:@"10.1" frame:NSMakeRect(272, 635, 52, 20)]; version.font = [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightSemibold]; version.textColor = NSColor.secondaryLabelColor; version.alignment = NSTextAlignmentCenter; version.wantsLayer = YES; version.layer.cornerRadius = 8; version.layer.backgroundColor = [NSColor.controlBackgroundColor colorWithAlphaComponent:0.55].CGColor; [c addSubview:version];
+    NSTextField *version = [self label:@"10.2" frame:NSMakeRect(272, 635, 52, 20)]; version.font = [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightSemibold]; version.textColor = NSColor.secondaryLabelColor; version.alignment = NSTextAlignmentCenter; version.wantsLayer = YES; version.layer.cornerRadius = 8; version.layer.backgroundColor = [NSColor.controlBackgroundColor colorWithAlphaComponent:0.55].CGColor; [c addSubview:version];
     NSTextField *sub = [self label:@"让手机和 Mac 更自然地一起用" frame:NSMakeRect(89, 602, 350, 22)];
     sub.textColor = NSColor.secondaryLabelColor; [c addSubview:sub];
     self.language = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(445, 625, 95, 26) pullsDown:NO]; [self.language addItemsWithTitles:@[@"中文", @"English"]]; self.language.target = self; self.language.action = @selector(changeLanguage:); [c addSubview:self.language];
@@ -940,7 +945,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
         @"调整镜像画面、DeX 桌面和电脑输入。":@"Adjust mirror display, DeX desktop and computer input.", @"显示":@"Display", @"分辨率":@"Resolution", @"帧率":@"Frame rate", @"画面质量":@"Image quality", @"文字大小":@"Text size", @"启用 DeX 桌面":@"Enable DeX desktop", @"画面比例":@"Aspect ratio", @"动态窗口大小":@"Dynamic window size", @"根据 DeX 桌面内容自动调整窗口大小。":@"Automatically fit the window to DeX desktop content.", @"输入":@"Input", @"键盘模式":@"Keyboard mode", @"窗口":@"Window", @"快捷操作":@"Shortcuts",
         @"在 Mac 与 Android 设备之间管理和传输文件。":@"Manage and transfer files between Mac and Android.", @"Mac 路径":@"Mac path", @"手机路径":@"Phone path", @"准备传输":@"Ready to transfer", @"将文件拖到此处上传到手机":@"Drop files here to upload to your phone",
         @"快速查找并在镜像窗口中打开手机应用。":@"Find and open phone apps in the mirror window.", @"搜索应用":@"Search apps", @"应用库":@"App Library", @"启动方式":@"Launch Mode", @"使用提示":@"Tips", @"双击应用即可启动。\n抖音、微信等竖屏应用会自动使用合适的显示比例。":@"Double-click an app to launch it.\nPortrait apps automatically use a suitable aspect ratio.", @"常用 Android 操作集中在一个页面中。":@"All common Android actions in one place.", @"通讯与剪贴板":@"Communication & Clipboard", @"快捷键与安全":@"Shortcuts & Safety", @"查看全部快捷键":@"View All Shortcuts",
-        @"调整性能、连接恢复和应用行为。":@"Adjust performance, connection recovery and app behaviour.", @"性能":@"Performance", @"性能配置":@"Performance profile", @"视频码率":@"Video bitrate", @"音频缓冲":@"Audio buffer", @"连接恢复":@"Connection Recovery", @"断线后自动重试":@"Retry automatically after disconnect", @"最大重试次数":@"Maximum retries", @"重试间隔":@"Retry interval", @"输入安全":@"Input Safety", @"鼠标直通（实验性）":@"Mouse passthrough (experimental)", @"手柄直通（实验性）":@"Gamepad passthrough (experimental)", @"实验性直通可能占用 Mac 输入。紧急停止：⌃⌥⌘Esc":@"Experimental passthrough may capture Mac input. Emergency stop: ⌃⌥⌘Esc", @"外观与行为":@"Appearance & Behaviour", @"语言":@"Language", @"主题":@"Theme", @"菜单栏显示设备状态":@"Show device status in menu bar", @"关于":@"About", @"开源项目致谢":@"Open-source Acknowledgements", @"选择文件…":@"Choose Files…", @"Scrcpy Mate 10.1\n内置 scrcpy、adb 与开放源代码组件":@"Scrcpy Mate 10.1\nIncludes scrcpy, adb and open-source components"
+        @"调整性能、连接恢复和应用行为。":@"Adjust performance, connection recovery and app behaviour.", @"性能":@"Performance", @"性能配置":@"Performance profile", @"视频码率":@"Video bitrate", @"音频缓冲":@"Audio buffer", @"连接恢复":@"Connection Recovery", @"断线后自动重试":@"Retry automatically after disconnect", @"最大重试次数":@"Maximum retries", @"重试间隔":@"Retry interval", @"输入安全":@"Input Safety", @"鼠标直通（实验性）":@"Mouse passthrough (experimental)", @"手柄直通（实验性）":@"Gamepad passthrough (experimental)", @"实验性直通可能占用 Mac 输入。紧急停止：⌃⌥⌘Esc":@"Experimental passthrough may capture Mac input. Emergency stop: ⌃⌥⌘Esc", @"外观与行为":@"Appearance & Behaviour", @"语言":@"Language", @"主题":@"Theme", @"菜单栏显示设备状态":@"Show device status in menu bar", @"关于":@"About", @"开源项目致谢":@"Open-source Acknowledgements", @"选择文件…":@"Choose Files…", @"Scrcpy Mate 10.2\n内置 scrcpy、adb 与开放源代码组件":@"Scrcpy Mate 10.2\nIncludes scrcpy, adb and open-source components"
     };
 }
 
@@ -965,6 +970,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 - (void)changeLanguage:(NSPopUpButton *)sender {
     self.englishUI = sender.indexOfSelectedItem == 1; [NSUserDefaults.standardUserDefaults setBool:self.englishUI forKey:@"EnglishUI"];
     [self applyLanguageToView:self.window.contentView];
+    self.sidebarSearch.placeholderString = self.englishUI ? @"Search settings" : @"搜索设置";
     [self rebuildStatusMenu];
     [self updateDeviceStats:nil];
 }
