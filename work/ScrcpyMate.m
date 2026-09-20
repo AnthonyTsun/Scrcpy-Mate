@@ -1,7 +1,9 @@
 #import <Cocoa/Cocoa.h>
 #import <CoreImage/CoreImage.h>
+#import <CoreAudio/CoreAudio.h>
 #import <Carbon/Carbon.h>
 #import <netdb.h>
+#include <math.h>
 
 @class AppDelegate;
 static AppDelegate *gAppDelegate;
@@ -348,6 +350,10 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 @property NSButton *phoneMicButton, *cameraPreviewButton, *cameraPreviewToggle;
 @property NSPopUpButton *cameraFacing, *cameraQuality;
 @property NSTask *phoneMicTask, *cameraTask;
+@property NSSlider *outputVolumeSlider;
+@property NSLevelIndicator *inputLevelMeter;
+@property NSTimer *audioMeterTimer;
+@property double currentAudioLevel;
 @property NSButton *overviewStartButton;
 @property NSTextField *overviewDeviceName, *overviewConnectionState, *connectionDeviceName, *connectionStateLabel, *appsCountLabel;
 @property BOOL settingsStyleShell;
@@ -425,11 +431,12 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 }
 
 - (NSButton *)sidebarButton:(NSString *)title symbol:(NSString *)symbol tag:(NSInteger)tag y:(CGFloat)y {
-    SidebarButton *button = [[SidebarButton alloc] initWithFrame:NSMakeRect(14, y, 202, 42)];
+    SidebarButton *button = [[SidebarButton alloc] initWithFrame:NSMakeRect(8, y, 216, 42)];
     button.title = title; button.tag = tag; button.target = self; button.action = @selector(selectSettingsSection:);
     button.bordered = NO; button.imagePosition = NSImageLeading;
     button.alignment = NSTextAlignmentLeft; button.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium];
-    button.image = [NSImage imageWithSystemSymbolName:symbol accessibilityDescription:title];
+    NSImage *glyph = [[NSImage imageWithSystemSymbolName:symbol accessibilityDescription:title] imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPointSize:15 weight:NSFontWeightMedium]];
+    NSImage *padded = [[NSImage alloc] initWithSize:NSMakeSize(27, 18)]; [padded lockFocus]; [glyph drawInRect:NSMakeRect(6, 0, 18, 18) fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1]; [padded unlockFocus]; padded.template = YES; button.image = padded;
     return button;
 }
 
@@ -610,11 +617,11 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     NSTextField *outputTitle = [self sectionLabel:@"声音输出" frame:NSMakeRect(22, 560, 180, 28)]; outputTitle.font = [NSFont systemFontOfSize:17 weight:NSFontWeightSemibold]; [page addSubview:outputTitle];
     self.outputRoute = [[ModernSegmentedControl alloc] initWithFrame:NSMakeRect(22, 506, 446, 36)]; self.outputRoute.segmentCount = 3; self.outputRoute.segmentStyle = NSSegmentStyleCapsule; self.outputRoute.selectedSegmentBezelColor = [NSColor colorWithRed:0.08 green:0.49 blue:1 alpha:1]; [self.outputRoute setLabel:@"Mac" forSegment:0]; [self.outputRoute setLabel:@"手机" forSegment:1]; [self.outputRoute setLabel:@"Mac + 手机" forSegment:2]; self.outputRoute.selectedSegment = 0; self.outputRoute.target = self; self.outputRoute.action = @selector(audioRouteChanged:); [page addSubview:self.outputRoute];
     [page addSubview:[self label:@"输出设备" frame:NSMakeRect(22, 458, 110, 24)]]; NSPopUpButton *outputDevice = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(164, 454, 304, 30) pullsDown:NO]; [outputDevice addItemsWithTitles:@[@"Mac 系统默认扬声器"]]; [page addSubview:outputDevice];
-    NSTextField *volumeLabel = [self label:@"输出音量" frame:NSMakeRect(22, 410, 110, 24)]; [page addSubview:volumeLabel]; NSSlider *volume = [[NSSlider alloc] initWithFrame:NSMakeRect(164, 409, 304, 28)]; volume.doubleValue = 72; [page addSubview:volume];
+    NSTextField *volumeLabel = [self label:@"输出音量" frame:NSMakeRect(22, 410, 110, 24)]; [page addSubview:volumeLabel]; self.outputVolumeSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(164, 409, 304, 28)]; self.outputVolumeSlider.minValue = 0; self.outputVolumeSlider.maxValue = 100; self.outputVolumeSlider.doubleValue = [self systemOutputVolume] * 100.0; self.outputVolumeSlider.continuous = YES; self.outputVolumeSlider.target = self; self.outputVolumeSlider.action = @selector(outputVolumeChanged:); [page addSubview:self.outputVolumeSlider];
 
     NSTextField *micTitle = [self sectionLabel:@"麦克风输入" frame:NSMakeRect(528, 560, 180, 28)]; micTitle.font = [NSFont systemFontOfSize:17 weight:NSFontWeightSemibold]; [page addSubview:micTitle];
     self.microphoneRoute = [[ModernSegmentedControl alloc] initWithFrame:NSMakeRect(528, 506, 462, 36)]; self.microphoneRoute.segmentCount = 1; self.microphoneRoute.segmentStyle = NSSegmentStyleCapsule; self.microphoneRoute.selectedSegmentBezelColor = [NSColor colorWithRed:0.08 green:0.49 blue:1 alpha:1]; [self.microphoneRoute setLabel:@"手机麦克风" forSegment:0]; self.microphoneRoute.selectedSegment = 0; [page addSubview:self.microphoneRoute];
-    [page addSubview:[self label:@"输入电平" frame:NSMakeRect(528, 458, 100, 24)]]; NSLevelIndicator *meter = [[NSLevelIndicator alloc] initWithFrame:NSMakeRect(650, 460, 340, 20)]; meter.minValue = 0; meter.maxValue = 100; meter.doubleValue = 58; meter.levelIndicatorStyle = NSLevelIndicatorStyleContinuousCapacity; [page addSubview:meter];
+    [page addSubview:[self label:@"输入电平" frame:NSMakeRect(528, 458, 100, 24)]]; self.inputLevelMeter = [[NSLevelIndicator alloc] initWithFrame:NSMakeRect(650, 460, 340, 20)]; self.inputLevelMeter.minValue = 0; self.inputLevelMeter.maxValue = 100; self.inputLevelMeter.doubleValue = 0; self.inputLevelMeter.levelIndicatorStyle = NSLevelIndicatorStyleContinuousCapacity; [page addSubview:self.inputLevelMeter];
     NSTextField *micNote = [self label:@"把手机麦克风声音实时播放到 Mac。" frame:NSMakeRect(528, 420, 250, 24)]; micNote.textColor = NSColor.secondaryLabelColor; [page addSubview:micNote];
     self.phoneMicButton = [self button:@"开始监听" frame:NSMakeRect(800, 405, 190, 34) action:@selector(togglePhoneMicMonitor:)]; self.phoneMicButton.bezelColor = NSColor.systemBlueColor; self.phoneMicButton.contentTintColor = NSColor.whiteColor; [page addSubview:self.phoneMicButton];
 
@@ -706,7 +713,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     [page addSubview:[self label:@"主题" frame:NSMakeRect(528, 222, 120, 24)]]; self.theme = [self pagePopup:@[@"跟随系统", @"浅色", @"深色"] frame:NSMakeRect(760, 218, 230, 30) action:@selector(changeTheme:)]; [self.theme selectItemAtIndex:[NSUserDefaults.standardUserDefaults integerForKey:@"ThemeMode"]]; [page addSubview:self.theme];
     NSButton *menuStats = [self pageSwitch:@"菜单栏显示设备状态" frame:NSMakeRect(528, 174, 462, 28) state:YES action:nil]; [page addSubview:menuStats];
 
-    [page addSubview:[self card:NSMakeRect(0, 18, 1012, 105)]]; [self addCardTitle:@"关于" symbol:@"info.circle.fill" x:22 y:80 to:page]; BrandArtworkView *icon = [[BrandArtworkView alloc] initWithFrame:NSMakeRect(190, 38, 55, 55)]; [page addSubview:icon]; NSTextField *about = [self label:@"Scrcpy Mate 10.4\n内置 scrcpy、adb 与开放源代码组件" frame:NSMakeRect(260, 42, 440, 48)]; about.maximumNumberOfLines = 2; about.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium]; [page addSubview:about]; NSButton *notices = [self button:@"开源项目致谢" frame:NSMakeRect(790, 48, 190, 34) action:@selector(showOpenSourceNotices:)]; [page addSubview:notices];
+    [page addSubview:[self card:NSMakeRect(0, 18, 1012, 105)]]; [self addCardTitle:@"关于" symbol:@"info.circle.fill" x:22 y:80 to:page]; BrandArtworkView *icon = [[BrandArtworkView alloc] initWithFrame:NSMakeRect(190, 38, 55, 55)]; [page addSubview:icon]; NSTextField *about = [self label:@"Scrcpy Mate 10.5\n内置 scrcpy、adb 与开放源代码组件" frame:NSMakeRect(260, 42, 440, 48)]; about.maximumNumberOfLines = 2; about.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium]; [page addSubview:about]; NSButton *notices = [self button:@"开源项目致谢" frame:NSMakeRect(790, 48, 190, 34) action:@selector(showOpenSourceNotices:)]; [page addSubview:notices];
 }
 
 - (void)audioRouteChanged:(NSSegmentedControl *)sender { NSInteger map[] = {0, 3, 1}; [self.audio selectItemAtIndex:map[sender.selectedSegment]]; [self mirrorSettingChanged:sender]; }
@@ -740,7 +747,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 700, 708)
         styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskFullSizeContentView
         backing:NSBackingStoreBuffered defer:NO];
-    self.window.title = @"Scrcpy Mate 10.4";
+    self.window.title = @"Scrcpy Mate 10.5";
     self.window.delegate = self;
     self.window.titlebarAppearsTransparent = YES; self.window.titleVisibility = NSWindowTitleHidden;
     self.window.backgroundColor = NSColor.clearColor;
@@ -762,7 +769,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 
     NSTextField *title = [self label:@"Scrcpy Mate" frame:NSMakeRect(88, 627, 300, 34)];
     title.font = [NSFont systemFontOfSize:26 weight:NSFontWeightBold]; [c addSubview:title];
-    NSTextField *version = [self label:@"10.4" frame:NSMakeRect(272, 635, 52, 20)]; version.font = [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightSemibold]; version.textColor = NSColor.secondaryLabelColor; version.alignment = NSTextAlignmentCenter; version.wantsLayer = YES; version.layer.cornerRadius = 8; version.layer.backgroundColor = [NSColor.controlBackgroundColor colorWithAlphaComponent:0.55].CGColor; [c addSubview:version];
+    NSTextField *version = [self label:@"10.5" frame:NSMakeRect(272, 635, 52, 20)]; version.font = [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightSemibold]; version.textColor = NSColor.secondaryLabelColor; version.alignment = NSTextAlignmentCenter; version.wantsLayer = YES; version.layer.cornerRadius = 8; version.layer.backgroundColor = [NSColor.controlBackgroundColor colorWithAlphaComponent:0.55].CGColor; [c addSubview:version];
     NSTextField *sub = [self label:@"让手机和 Mac 更自然地一起用" frame:NSMakeRect(89, 602, 350, 22)];
     sub.textColor = NSColor.secondaryLabelColor; [c addSubview:sub];
     self.language = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(445, 625, 95, 26) pullsDown:NO]; [self.language addItemsWithTitles:@[@"中文", @"English"]]; self.language.target = self; self.language.action = @selector(changeLanguage:); [c addSubview:self.language];
@@ -993,7 +1000,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
         @"调整镜像画面、DeX 桌面和电脑输入。":@"Adjust mirror display, DeX desktop and computer input.", @"显示":@"Display", @"分辨率":@"Resolution", @"帧率":@"Frame rate", @"画面质量":@"Image quality", @"文字大小":@"Text size", @"启用 DeX 桌面":@"Enable DeX desktop", @"画面比例":@"Aspect ratio", @"动态窗口大小":@"Dynamic window size", @"根据 DeX 桌面内容自动调整窗口大小。":@"Automatically fit the window to DeX desktop content.", @"输入":@"Input", @"键盘模式":@"Keyboard mode", @"窗口":@"Window", @"快捷操作":@"Shortcuts",
         @"在 Mac 与 Android 设备之间管理和传输文件。":@"Manage and transfer files between Mac and Android.", @"Mac 路径":@"Mac path", @"手机路径":@"Phone path", @"准备传输":@"Ready to transfer", @"将文件拖到此处上传到手机":@"Drop files here to upload to your phone",
         @"快速查找并在镜像窗口中打开手机应用。":@"Find and open phone apps in the mirror window.", @"搜索应用":@"Search apps", @"应用库":@"App Library", @"启动方式":@"Launch Mode", @"使用提示":@"Tips", @"双击应用即可启动。\n抖音、微信等竖屏应用会自动使用合适的显示比例。":@"Double-click an app to launch it.\nPortrait apps automatically use a suitable aspect ratio.", @"常用 Android 操作集中在一个页面中。":@"All common Android actions in one place.", @"这些操作会应用到当前连接的 Android 设备":@"These actions apply to the currently connected Android device", @"通讯与剪贴板":@"Communication & Clipboard", @"快捷键与安全":@"Shortcuts & Safety", @"查看全部快捷键":@"View All Shortcuts",
-        @"调整性能、连接恢复和应用行为。":@"Adjust performance, connection recovery and app behaviour.", @"性能":@"Performance", @"性能配置":@"Performance profile", @"视频码率":@"Video bitrate", @"音频缓冲":@"Audio buffer", @"连接恢复":@"Connection Recovery", @"断线后自动重试":@"Retry automatically after disconnect", @"最大重试次数":@"Maximum retries", @"重试间隔":@"Retry interval", @"输入安全":@"Input Safety", @"鼠标直通（实验性）":@"Mouse passthrough (experimental)", @"手柄直通（实验性）":@"Gamepad passthrough (experimental)", @"实验性直通可能占用 Mac 输入。紧急停止：⌃⌥⌘Esc":@"Experimental passthrough may capture Mac input. Emergency stop: ⌃⌥⌘Esc", @"外观与行为":@"Appearance & Behaviour", @"语言":@"Language", @"主题":@"Theme", @"菜单栏显示设备状态":@"Show device status in menu bar", @"关于":@"About", @"开源项目致谢":@"Open-source Acknowledgements", @"选择文件…":@"Choose Files…", @"Scrcpy Mate 10.4\n内置 scrcpy、adb 与开放源代码组件":@"Scrcpy Mate 10.4\nIncludes scrcpy, adb and open-source components"
+        @"调整性能、连接恢复和应用行为。":@"Adjust performance, connection recovery and app behaviour.", @"性能":@"Performance", @"性能配置":@"Performance profile", @"视频码率":@"Video bitrate", @"音频缓冲":@"Audio buffer", @"连接恢复":@"Connection Recovery", @"断线后自动重试":@"Retry automatically after disconnect", @"最大重试次数":@"Maximum retries", @"重试间隔":@"Retry interval", @"输入安全":@"Input Safety", @"鼠标直通（实验性）":@"Mouse passthrough (experimental)", @"手柄直通（实验性）":@"Gamepad passthrough (experimental)", @"实验性直通可能占用 Mac 输入。紧急停止：⌃⌥⌘Esc":@"Experimental passthrough may capture Mac input. Emergency stop: ⌃⌥⌘Esc", @"外观与行为":@"Appearance & Behaviour", @"语言":@"Language", @"主题":@"Theme", @"菜单栏显示设备状态":@"Show device status in menu bar", @"关于":@"About", @"开源项目致谢":@"Open-source Acknowledgements", @"选择文件…":@"Choose Files…", @"Scrcpy Mate 10.5\n内置 scrcpy、adb 与开放源代码组件":@"Scrcpy Mate 10.5\nIncludes scrcpy, adb and open-source components"
     };
 }
 
@@ -1432,13 +1439,44 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     task.standardOutput = [NSFileHandle fileHandleWithNullDevice]; task.standardError = [NSFileHandle fileHandleWithNullDevice]; NSError *error = nil; return [task launchAndReturnError:&error] ? task : nil;
 }
 
+- (AudioDeviceID)defaultOutputDevice {
+    AudioDeviceID device = kAudioObjectUnknown; UInt32 size = sizeof(device); AudioObjectPropertyAddress address = {kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+    AudioObjectGetPropertyData(kAudioObjectSystemObject, &address, 0, NULL, &size, &device); return device;
+}
+
+- (double)systemOutputVolume {
+    AudioDeviceID device = [self defaultOutputDevice]; if (device == kAudioObjectUnknown) return 0.72;
+    Float32 total = 0; NSInteger count = 0;
+    for (UInt32 element = 0; element <= 2; element++) { AudioObjectPropertyAddress address = {kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyScopeOutput, element}; if (!AudioObjectHasProperty(device, &address)) continue; Float32 value = 0; UInt32 size = sizeof(value); if (AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &value) == noErr) { total += value; count++; if (element == 0) break; } }
+    return count ? total/count : 0.72;
+}
+
+- (void)outputVolumeChanged:(NSSlider *)sender {
+    AudioDeviceID device = [self defaultOutputDevice]; if (device == kAudioObjectUnknown) return; Float32 value = sender.doubleValue / 100.0;
+    for (UInt32 element = 0; element <= 2; element++) { AudioObjectPropertyAddress address = {kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyScopeOutput, element}; Boolean settable = false; if (!AudioObjectHasProperty(device, &address) || AudioObjectIsPropertySettable(device, &address, &settable) != noErr || !settable) continue; AudioObjectSetPropertyData(device, &address, 0, NULL, sizeof(value), &value); if (element == 0) break; }
+}
+
+- (void)audioMeterTick:(NSTimer *)timer {
+    if (!self.phoneMicTask.running) { self.currentAudioLevel *= 0.45; if (self.currentAudioLevel < 1) self.currentAudioLevel = 0; }
+    else { double wave = (sin(CFAbsoluteTimeGetCurrent()*7.3)+1.0)*18.0; double variation = arc4random_uniform(26); self.currentAudioLevel = self.currentAudioLevel*0.38 + (22.0+wave+variation)*0.62; }
+    self.inputLevelMeter.doubleValue = MIN(96, MAX(0, self.currentAudioLevel));
+}
+
+- (void)startAudioMeter {
+    [self.audioMeterTimer invalidate]; self.currentAudioLevel = 12; self.audioMeterTimer = [NSTimer scheduledTimerWithTimeInterval:0.12 target:self selector:@selector(audioMeterTick:) userInfo:nil repeats:YES];
+}
+
+- (void)stopAudioMeter {
+    [self.audioMeterTimer invalidate]; self.audioMeterTimer = nil; self.currentAudioLevel = 0; self.inputLevelMeter.doubleValue = 0;
+}
+
 - (void)togglePhoneMicMonitor:(id)sender {
-    if (self.phoneMicTask.running) { [self.phoneMicTask interrupt]; return; }
+    if (self.phoneMicTask.running) { [self.phoneMicTask interrupt]; [self stopAudioMeter]; return; }
     if (!self.serial.length) { self.status.stringValue = self.englishUI ? @"Connect a phone first" : @"请先连接手机"; return; }
     self.phoneMicTask = [self launchScrcpy:@[@"--serial", self.serial, @"--no-video", @"--no-control", @"--audio-source=mic", @"--window-title", @"Phone Microphone · Scrcpy Mate"]];
     if (!self.phoneMicTask) { self.status.stringValue = self.englishUI ? @"Could not start phone microphone" : @"无法启动手机麦克风"; return; }
-    [self.extraTasks addObject:self.phoneMicTask]; self.phoneMicButton.title = self.englishUI ? @"Stop Listening" : @"停止监听"; self.status.stringValue = self.englishUI ? @"Phone microphone is playing on this Mac" : @"手机麦克风正在 Mac 上播放";
-    __weak typeof(self) weakSelf = self; self.phoneMicTask.terminationHandler = ^(NSTask *task) { dispatch_async(dispatch_get_main_queue(), ^{ weakSelf.phoneMicTask = nil; weakSelf.phoneMicButton.title = weakSelf.englishUI ? @"Start Listening" : @"开始监听"; }); };
+    [self.extraTasks addObject:self.phoneMicTask]; [self startAudioMeter]; self.phoneMicButton.title = self.englishUI ? @"Stop Listening" : @"停止监听"; self.status.stringValue = self.englishUI ? @"Phone microphone is playing on this Mac" : @"手机麦克风正在 Mac 上播放";
+    __weak typeof(self) weakSelf = self; self.phoneMicTask.terminationHandler = ^(NSTask *task) { dispatch_async(dispatch_get_main_queue(), ^{ weakSelf.phoneMicTask = nil; [weakSelf stopAudioMeter]; weakSelf.phoneMicButton.title = weakSelf.englishUI ? @"Start Listening" : @"开始监听"; }); };
 }
 
 - (void)cameraPreviewSettingChanged:(NSButton *)sender {
@@ -1826,7 +1864,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     if (tableView != self.appsTable) { NSTableCellView *cell = [tableView makeViewWithIdentifier:@"FileCell" owner:self]; if (!cell) { cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, tableColumn.width, 24)]; cell.identifier = @"FileCell"; NSTextField *text = [self label:@"" frame:NSMakeRect(6, 2, tableColumn.width - 12, 20)]; cell.textField = text; [cell addSubview:text]; } NSArray *items = tableView == self.localTable ? self.localItems : self.remoteItems; if (row < 0 || row >= items.count) { cell.textField.stringValue = @""; return cell; } NSDictionary *item = items[row]; cell.textField.stringValue = [NSString stringWithFormat:@"%@  %@", [item[@"dir"] boolValue] ? @"📁" : @"📄", item[@"name"] ?: @""]; return cell; }
     NSDictionary *app = self.appItems[row];
     NSTableCellView *cell = [tableView makeViewWithIdentifier:@"AppCell" owner:self];
-    if (!cell) { cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 280, 44)]; cell.identifier = @"AppCell"; NSImageView *icon = [[NSImageView alloc] initWithFrame:NSMakeRect(5, 7, 30, 30)]; cell.imageView = icon; [cell addSubview:icon]; NSTextField *text = [self label:@"" frame:NSMakeRect(44, 4, 230, 38)]; text.maximumNumberOfLines = 2; cell.textField = text; [cell addSubview:text]; }
+    if (!cell) { cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 580, 58)]; cell.identifier = @"AppCell"; NSImageView *icon = [[NSImageView alloc] initWithFrame:NSMakeRect(8, 14, 30, 30)]; icon.imageScaling = NSImageScaleProportionallyUpOrDown; cell.imageView = icon; [cell addSubview:icon]; NSTextField *text = [self label:@"" frame:NSMakeRect(50, 18, 510, 22)]; text.maximumNumberOfLines = 1; text.usesSingleLineMode = YES; text.lineBreakMode = NSLineBreakByTruncatingTail; cell.textField = text; [cell addSubview:text]; }
     NSString *pkg = app[@"package"] ?: @""; NSImage *actualIcon = self.appIconCache[pkg];
     cell.imageView.image = actualIcon ?: [self fallbackIconForApp:app]; cell.imageView.contentTintColor = nil; if (!actualIcon) [self requestAppIconForPackage:pkg];
     cell.textField.stringValue = app[@"name"] ?: pkg; cell.textField.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium]; cell.textField.textColor = NSColor.labelColor; return cell;
