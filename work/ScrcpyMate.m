@@ -166,6 +166,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 @property NSPopUpButton *devices, *audio, *quality;
 @property NSTextField *wifi, *target, *status;
 @property DeviceStatsView *deviceStats;
+@property DeviceStatsView *audioDeviceStats;
 @property NSButton *stayAwake, *screenOff, *alwaysOnTop, *keyboardControl, *mouseControl, *autoWiFi, *dexMode, *startButton, *hideAfterStart;
 @property NSButton *wirelessButton;
 @property NSTask *mirrorTask;
@@ -209,6 +210,13 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 @property NSMenu *statusMenu;
 @property NSMenuItem *menuDevice, *menuStats;
 @property NSTimer *deviceStatsTimer;
+@property NSVisualEffectView *settingsSidebar;
+@property NSView *audioCameraPage;
+@property NSArray<NSView *> *overviewViews;
+@property NSMutableArray<NSButton *> *sidebarButtons;
+@property NSSegmentedControl *outputRoute, *microphoneRoute;
+@property NSButton *rememberSettings;
+@property BOOL settingsStyleShell;
 - (void)handleDroppedURLs:(NSArray<NSURL *> *)urls;
 @end
 
@@ -282,11 +290,109 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     return b;
 }
 
+- (NSButton *)sidebarButton:(NSString *)title symbol:(NSString *)symbol tag:(NSInteger)tag y:(CGFloat)y {
+    NSButton *button = [[NSButton alloc] initWithFrame:NSMakeRect(14, y, 202, 42)];
+    button.title = title; button.tag = tag; button.target = self; button.action = @selector(selectSettingsSection:);
+    button.bezelStyle = NSBezelStyleRecessed; button.imagePosition = NSImageLeading;
+    button.alignment = NSTextAlignmentLeft; button.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium];
+    button.image = [NSImage imageWithSystemSymbolName:symbol accessibilityDescription:title];
+    return button;
+}
+
+- (void)installSettingsStyleShell {
+    self.settingsStyleShell = YES;
+    NSView *root = self.window.contentView;
+    self.overviewViews = [root.subviews copy];
+    for (NSView *view in self.overviewViews) { NSRect frame = view.frame; frame.origin.x += 250; view.frame = frame; }
+    self.toolsPanel.hidden = NO;
+
+    NSRect windowFrame = self.window.frame; windowFrame.origin.x -= 290; windowFrame.origin.y -= 26; windowFrame.size = NSMakeSize(1280, 760); [self.window setFrame:windowFrame display:YES];
+    self.window.minSize = NSMakeSize(1100, 700);
+
+    self.settingsSidebar = [[NSVisualEffectView alloc] initWithFrame:NSMakeRect(0, 0, 232, 760)];
+    self.settingsSidebar.material = NSVisualEffectMaterialSidebar; self.settingsSidebar.blendingMode = NSVisualEffectBlendingModeWithinWindow; self.settingsSidebar.state = NSVisualEffectStateActive; self.settingsSidebar.autoresizingMask = NSViewHeightSizable; [root addSubview:self.settingsSidebar];
+    NSSearchField *search = [[NSSearchField alloc] initWithFrame:NSMakeRect(14, 684, 202, 34)]; search.placeholderString = @"搜索"; [self.settingsSidebar addSubview:search];
+    NSArray *titles = @[@"概览", @"连接设置", @"画面与输入", @"声音与摄像头", @"文件传输", @"应用", @"高级设置"];
+    NSArray *symbols = @[@"house.fill", @"link", @"display", @"speaker.wave.2.fill", @"folder.fill", @"square.grid.2x2.fill", @"gearshape.fill"];
+    self.sidebarButtons = [NSMutableArray array];
+    for (NSInteger i = 0; i < titles.count; i++) { NSButton *b = [self sidebarButton:titles[i] symbol:symbols[i] tag:i y:625-i*49]; if (i == 0) { b.bezelColor = NSColor.systemBlueColor; b.contentTintColor = NSColor.whiteColor; } [self.settingsSidebar addSubview:b]; [self.sidebarButtons addObject:b]; }
+    BrandArtworkView *smallMark = [[BrandArtworkView alloc] initWithFrame:NSMakeRect(18, 34, 52, 52)]; [self.settingsSidebar addSubview:smallMark];
+    NSTextField *brand = [self label:@"Scrcpy Mate" frame:NSMakeRect(78, 56, 135, 22)]; brand.font = [NSFont systemFontOfSize:14 weight:NSFontWeightSemibold]; [self.settingsSidebar addSubview:brand];
+    NSTextField *tagline = [self label:@"Mirror. Control. Do More." frame:NSMakeRect(78, 34, 140, 20)]; tagline.font = [NSFont systemFontOfSize:10]; tagline.textColor = NSColor.secondaryLabelColor; [self.settingsSidebar addSubview:tagline];
+
+    self.audioCameraPage = [[NSView alloc] initWithFrame:NSMakeRect(250, 20, 1012, 700)]; self.audioCameraPage.hidden = YES; [root addSubview:self.audioCameraPage];
+    [self buildAudioCameraPage:self.audioCameraPage];
+}
+
+- (void)setOverviewHidden:(BOOL)hidden {
+    for (NSView *view in self.overviewViews) view.hidden = hidden;
+}
+
+- (void)selectSettingsSection:(NSButton *)sender {
+    for (NSButton *button in self.sidebarButtons) { button.bezelColor = nil; button.contentTintColor = NSColor.labelColor; }
+    sender.bezelColor = NSColor.systemBlueColor; sender.contentTintColor = NSColor.whiteColor;
+    BOOL audioPage = sender.tag == 3;
+    [self setOverviewHidden:audioPage]; self.audioCameraPage.hidden = !audioPage;
+    if (!audioPage && sender.tag != 0) self.status.stringValue = self.englishUI ? @"This section is summarized on Overview." : @"此功能目前集中显示在“概览”页面。";
+}
+
+- (void)buildAudioCameraPage:(NSView *)page {
+    NSTextField *heading = [self label:@"声音与摄像头" frame:NSMakeRect(18, 642, 420, 38)]; heading.font = [NSFont systemFontOfSize:28 weight:NSFontWeightBold]; [page addSubview:heading];
+    NSTextField *sub = [self label:@"选择声音、麦克风和手机摄像头的来源。" frame:NSMakeRect(18, 617, 520, 22)]; sub.textColor = NSColor.secondaryLabelColor; [page addSubview:sub];
+    [page addSubview:[self card:NSMakeRect(0, 360, 490, 240)]]; [page addSubview:[self card:NSMakeRect(506, 360, 506, 240)]];
+    [page addSubview:[self card:NSMakeRect(0, 112, 490, 230)]]; [page addSubview:[self card:NSMakeRect(506, 112, 506, 230)]];
+    [page addSubview:[self card:NSMakeRect(0, 18, 1012, 76)]];
+    NSTextField *outputTitle = [self sectionLabel:@"声音输出" frame:NSMakeRect(22, 560, 180, 28)]; outputTitle.font = [NSFont systemFontOfSize:17 weight:NSFontWeightSemibold]; [page addSubview:outputTitle];
+    self.outputRoute = [[NSSegmentedControl alloc] initWithFrame:NSMakeRect(22, 506, 446, 36)]; self.outputRoute.segmentCount = 3; [self.outputRoute setLabel:@"Mac" forSegment:0]; [self.outputRoute setLabel:@"手机" forSegment:1]; [self.outputRoute setLabel:@"Mac + 手机" forSegment:2]; self.outputRoute.selectedSegment = 0; self.outputRoute.target = self; self.outputRoute.action = @selector(audioRouteChanged:); [page addSubview:self.outputRoute];
+    [page addSubview:[self label:@"输出设备" frame:NSMakeRect(22, 458, 110, 24)]]; NSPopUpButton *outputDevice = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(164, 454, 304, 30) pullsDown:NO]; [outputDevice addItemsWithTitles:@[@"Mac 系统默认扬声器"]]; [page addSubview:outputDevice];
+    NSTextField *volumeLabel = [self label:@"输出音量" frame:NSMakeRect(22, 410, 110, 24)]; [page addSubview:volumeLabel]; NSSlider *volume = [[NSSlider alloc] initWithFrame:NSMakeRect(164, 409, 304, 28)]; volume.doubleValue = 72; [page addSubview:volume];
+
+    NSTextField *micTitle = [self sectionLabel:@"麦克风输入" frame:NSMakeRect(528, 560, 180, 28)]; micTitle.font = [NSFont systemFontOfSize:17 weight:NSFontWeightSemibold]; [page addSubview:micTitle];
+    self.microphoneRoute = [[NSSegmentedControl alloc] initWithFrame:NSMakeRect(528, 506, 462, 36)]; self.microphoneRoute.segmentCount = 2; [self.microphoneRoute setLabel:@"Mac 麦克风" forSegment:0]; [self.microphoneRoute setLabel:@"手机麦克风" forSegment:1]; [self.microphoneRoute setEnabled:NO forSegment:0]; self.microphoneRoute.selectedSegment = 1; self.microphoneRoute.target = self; self.microphoneRoute.action = @selector(microphoneRouteChanged:); self.microphoneRoute.toolTip = @"Mac 麦克风虚拟输入到手机暂不支持"; [page addSubview:self.microphoneRoute];
+    [page addSubview:[self label:@"输入电平" frame:NSMakeRect(528, 458, 100, 24)]]; NSLevelIndicator *meter = [[NSLevelIndicator alloc] initWithFrame:NSMakeRect(650, 460, 340, 20)]; meter.minValue = 0; meter.maxValue = 100; meter.doubleValue = 58; meter.levelIndicatorStyle = NSLevelIndicatorStyleContinuousCapacity; [page addSubview:meter];
+    NSTextField *micNote = [self label:@"使用手机麦克风进行通话、录音或监听。" frame:NSMakeRect(528, 405, 430, 42)]; micNote.textColor = NSColor.secondaryLabelColor; [page addSubview:micNote];
+
+    NSTextField *cameraTitle = [self sectionLabel:@"使用手机摄像头" frame:NSMakeRect(22, 300, 220, 28)]; cameraTitle.font = [NSFont systemFontOfSize:17 weight:NSFontWeightSemibold]; [page addSubview:cameraTitle];
+    NSButton *cameraToggle = [self check:@"启用摄像头预览" y:264]; cameraToggle.frame = NSMakeRect(22, 264, 220, 24); cameraToggle.state = NSControlStateValueOn; cameraToggle.target = self; cameraToggle.action = @selector(startCamera:); [page addSubview:cameraToggle];
+    [page addSubview:[self label:@"摄像头" frame:NSMakeRect(22, 220, 90, 24)]]; NSPopUpButton *camera = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(140, 216, 328, 30) pullsDown:NO]; [camera addItemsWithTitles:@[@"后置摄像头", @"前置摄像头"]]; [page addSubview:camera];
+    [page addSubview:[self label:@"画质" frame:NSMakeRect(22, 177, 90, 24)]]; NSPopUpButton *cameraQuality = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(140, 173, 328, 30) pullsDown:NO]; [cameraQuality addItemsWithTitles:@[@"1080p · 30 fps", @"720p · 30 fps", @"1080p · 60 fps"]]; [page addSubview:cameraQuality];
+    NSButton *preview = [self button:@"打开摄像头预览" frame:NSMakeRect(140, 132, 328, 32) action:@selector(startCamera:)]; preview.bezelColor = NSColor.systemBlueColor; preview.contentTintColor = NSColor.whiteColor; [page addSubview:preview];
+
+    NSTextField *savedTitle = [self sectionLabel:@"保存设置" frame:NSMakeRect(528, 300, 180, 28)]; savedTitle.font = [NSFont systemFontOfSize:17 weight:NSFontWeightSemibold]; [page addSubview:savedTitle];
+    self.rememberSettings = [self check:@"记住这台手机的设置" y:258]; self.rememberSettings.frame = NSMakeRect(528, 258, 300, 26); self.rememberSettings.state = NSControlStateValueOn; [page addSubview:self.rememberSettings];
+    NSTextField *savedNote = [self label:@"声音、摄像头、画面和输入设置将在下次连接时自动恢复。" frame:NSMakeRect(528, 205, 430, 48)]; savedNote.maximumNumberOfLines = 2; savedNote.textColor = NSColor.secondaryLabelColor; [page addSubview:savedNote];
+    NSButton *save = [self button:@"保存设置" frame:NSMakeRect(528, 135, 462, 42) action:@selector(saveDevicePreferences:)]; save.bezelColor = NSColor.systemBlueColor; save.contentTintColor = NSColor.whiteColor; [page addSubview:save];
+
+    NSTextField *health = [self sectionLabel:@"设备状态" frame:NSMakeRect(22, 60, 100, 24)]; [page addSubview:health];
+    self.audioDeviceStats = [[DeviceStatsView alloc] initWithFrame:NSMakeRect(140, 52, 520, 20)]; self.audioDeviceStats.connected = NO; self.audioDeviceStats.emptyText = @"连接手机后显示电量、CPU、内存与存储"; [page addSubview:self.audioDeviceStats];
+}
+
+- (void)audioRouteChanged:(NSSegmentedControl *)sender { NSInteger map[] = {0, 3, 1}; [self.audio selectItemAtIndex:map[sender.selectedSegment]]; [self mirrorSettingChanged:sender]; }
+- (void)microphoneRouteChanged:(NSSegmentedControl *)sender { if (sender.selectedSegment == 1) { [self.audio selectItemAtIndex:2]; [self mirrorSettingChanged:sender]; } }
+- (void)saveDevicePreferences:(id)sender {
+    NSUserDefaults *d = NSUserDefaults.standardUserDefaults; [d setInteger:self.outputRoute.selectedSegment forKey:@"SavedOutputRoute"]; [d setInteger:self.quality.indexOfSelectedItem forKey:@"SavedResolution"]; [d setBool:self.dexMode.state == NSControlStateValueOn forKey:@"SavedDexMode"]; [d setBool:self.keyboardControl.state == NSControlStateValueOn forKey:@"SavedKeyboard"]; [d setBool:self.mouseControl.state == NSControlStateValueOn forKey:@"SavedMouse"]; [d setBool:self.rememberSettings.state == NSControlStateValueOn forKey:@"RememberDeviceSettings"]; self.status.stringValue = self.englishUI ? @"Settings saved for this phone." : @"已保存这台手机的设置。";
+}
+
+- (void)restoreDevicePreferences {
+    NSUserDefaults *d = NSUserDefaults.standardUserDefaults;
+    BOOL hasPreference = [d objectForKey:@"RememberDeviceSettings"] != nil;
+    BOOL remember = hasPreference ? [d boolForKey:@"RememberDeviceSettings"] : YES;
+    self.rememberSettings.state = remember ? NSControlStateValueOn : NSControlStateValueOff;
+    if (!remember) return;
+    NSInteger route = [d objectForKey:@"SavedOutputRoute"] ? [d integerForKey:@"SavedOutputRoute"] : 0;
+    route = MIN(MAX(route, 0), 2); self.outputRoute.selectedSegment = route;
+    NSInteger audioMap[] = {0, 3, 1}; [self.audio selectItemAtIndex:audioMap[route]];
+    if ([d objectForKey:@"SavedResolution"]) [self.quality selectItemAtIndex:MIN(MAX([d integerForKey:@"SavedResolution"], 0), self.quality.numberOfItems-1)];
+    if ([d objectForKey:@"SavedDexMode"]) self.dexMode.state = [d boolForKey:@"SavedDexMode"] ? NSControlStateValueOn : NSControlStateValueOff;
+    if ([d objectForKey:@"SavedKeyboard"]) self.keyboardControl.state = [d boolForKey:@"SavedKeyboard"] ? NSControlStateValueOn : NSControlStateValueOff;
+    if ([d objectForKey:@"SavedMouse"]) self.mouseControl.state = [d boolForKey:@"SavedMouse"] ? NSControlStateValueOn : NSControlStateValueOff;
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)note {
     self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 700, 708)
         styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskFullSizeContentView
         backing:NSBackingStoreBuffered defer:NO];
-    self.window.title = @"Scrcpy Mate 9.7.1";
+    self.window.title = @"Scrcpy Mate 9.8";
     self.window.delegate = self;
     self.window.titlebarAppearsTransparent = YES; self.window.titleVisibility = NSWindowTitleHidden;
     self.window.backgroundColor = NSColor.clearColor;
@@ -308,7 +414,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 
     NSTextField *title = [self label:@"Scrcpy Mate" frame:NSMakeRect(88, 627, 300, 34)];
     title.font = [NSFont systemFontOfSize:26 weight:NSFontWeightBold]; [c addSubview:title];
-    NSTextField *version = [self label:@"9.7.1" frame:NSMakeRect(272, 635, 52, 20)]; version.font = [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightSemibold]; version.textColor = NSColor.secondaryLabelColor; version.alignment = NSTextAlignmentCenter; version.wantsLayer = YES; version.layer.cornerRadius = 8; version.layer.backgroundColor = [NSColor.controlBackgroundColor colorWithAlphaComponent:0.55].CGColor; [c addSubview:version];
+    NSTextField *version = [self label:@"9.8" frame:NSMakeRect(272, 635, 52, 20)]; version.font = [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightSemibold]; version.textColor = NSColor.secondaryLabelColor; version.alignment = NSTextAlignmentCenter; version.wantsLayer = YES; version.layer.cornerRadius = 8; version.layer.backgroundColor = [NSColor.controlBackgroundColor colorWithAlphaComponent:0.55].CGColor; [c addSubview:version];
     NSTextField *sub = [self label:@"让手机和 Mac 更自然地一起用" frame:NSMakeRect(89, 602, 350, 22)];
     sub.textColor = NSColor.secondaryLabelColor; [c addSubview:sub];
     self.language = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(445, 625, 95, 26) pullsDown:NO]; [self.language addItemsWithTitles:@[@"中文", @"English"]]; self.language.target = self; self.language.action = @selector(changeLanguage:); [c addSubview:self.language];
@@ -370,6 +476,8 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     self.deviceStatsTimer = [NSTimer scheduledTimerWithTimeInterval:12.0 target:self selector:@selector(updateDeviceStats:) userInfo:nil repeats:YES];
     self.extraTasks = [NSMutableArray array];
     [self setupEmbeddedTools];
+    [self installSettingsStyleShell];
+    [self restoreDevicePreferences];
     self.englishUI = [NSUserDefaults.standardUserDefaults boolForKey:@"EnglishUI"];
     [self.language selectItemAtIndex:self.englishUI ? 1 : 0];
     [self rebuildStatusMenu];
@@ -481,6 +589,11 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
         @"双击启动应用 · 文件可拖入镜像窗口":@"Double-click an app · Drag files into the mirror window",
         @"Mac":@"Mac", @"手机":@"Phone", @"返回上级":@"Up", @"上传 →":@"Upload →", @"← 下载":@"← Download", @"新建文件夹":@"New Folder",
         @"电量、内存与存储信息会在连接后显示":@"Battery, memory and storage appear after connection",
+        @"概览":@"Overview", @"连接设置":@"Connection", @"声音与摄像头":@"Audio & Camera", @"文件传输":@"File Transfer", @"高级设置":@"Advanced",
+        @"选择声音、麦克风和手机摄像头的来源。":@"Choose where sound, microphone and phone camera come from.", @"声音输出":@"Sound Output", @"输出设备":@"Output device", @"Mac 系统默认扬声器":@"Mac system default speakers", @"输出音量":@"Output volume",
+        @"麦克风输入":@"Microphone Input", @"Mac 麦克风":@"Mac Microphone", @"手机麦克风":@"Phone Microphone", @"输入电平":@"Input level", @"测试":@"Test", @"使用手机麦克风进行通话、录音或监听。":@"Use the phone microphone for calls, recording or monitoring.",
+        @"使用手机摄像头":@"Use Phone as Camera", @"启用摄像头预览":@"Enable camera preview", @"摄像头":@"Camera", @"后置摄像头":@"Rear Camera", @"前置摄像头":@"Front Camera", @"打开摄像头预览":@"Open Camera Preview",
+        @"保存设置":@"Save Settings", @"记住这台手机的设置":@"Remember settings for this phone", @"声音、摄像头、画面和输入设置将在下次连接时自动恢复。":@"Audio, camera, display and input preferences will restore automatically.", @"设备状态":@"Device Health", @"连接手机后显示电量、CPU、内存与存储":@"Battery, CPU, memory and storage appear after connection",
         @"双击文件夹进入；选择项目后用中间按钮双向传输":@"Double-click folders; select an item and use the centre buttons to transfer."
     };
 }
@@ -566,12 +679,25 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     return -1;
 }
 
+- (void)syncAudioDeviceStats {
+    if (!self.audioDeviceStats) return;
+    self.audioDeviceStats.connected = self.deviceStats.connected;
+    self.audioDeviceStats.battery = self.deviceStats.battery;
+    self.audioDeviceStats.memoryFraction = self.deviceStats.memoryFraction;
+    self.audioDeviceStats.storageFraction = self.deviceStats.storageFraction;
+    self.audioDeviceStats.memoryText = self.deviceStats.memoryText;
+    self.audioDeviceStats.storageText = self.deviceStats.storageText;
+    self.audioDeviceStats.emptyText = self.englishUI ? @"Battery, CPU, memory and storage appear after connection" : @"连接手机后显示电量、CPU、内存与存储";
+    [self.audioDeviceStats setNeedsDisplay:YES];
+}
+
 - (void)updateDeviceStats:(id)sender {
     NSString *serial = self.serial;
     if (!serial.length || [self.devices.titleOfSelectedItem containsString:@"未找到"] || [self.devices.titleOfSelectedItem containsString:@"No device"]) {
         self.deviceStats.connected = NO;
         self.deviceStats.emptyText = self.englishUI ? @"Battery, memory and storage appear after connection" : @"电量、内存与存储信息会在连接后显示";
         [self.deviceStats setNeedsDisplay:YES];
+        [self syncAudioDeviceStats];
         self.menuDevice.title = self.englishUI ? @"No phone connected" : @"未连接手机";
         self.menuStats.title = self.deviceStats.emptyText;
         self.statusItem.button.title = @"";
@@ -613,6 +739,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
             self.deviceStats.memoryText = [NSString stringWithFormat:@"CPU %@ · %.0f%%", cpuPercent >= 0 ? [NSString stringWithFormat:@"%ld%%", (long)cpuPercent] : @"—", totalKB > 0 ? (totalKB-availableKB)*100.0/totalKB : 0];
             self.deviceStats.storageText = [NSString stringWithFormat:@"%.0f/%.0fG", storageUsedGB, storageTotalGB];
             [self.deviceStats setNeedsDisplay:YES];
+            [self syncAudioDeviceStats];
             self.menuDevice.title = [NSString stringWithFormat:@"%@  ·  %@", deviceName, link];
             self.menuStats.title = summary;
             NSString *batterySymbol = level <= 20 ? @"battery.25" : (level <= 50 ? @"battery.50" : (level <= 75 ? @"battery.75" : @"battery.100"));
@@ -864,6 +991,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 }
 
 - (void)showEmbeddedTools {
+    if (self.settingsStyleShell) { self.toolsPanel.hidden = NO; [self openAppLauncher:nil]; return; }
     if (!self.toolsPanel.hidden) return; self.toolsPanel.hidden = NO;
     NSRect frame = self.window.frame; CGFloat delta = 350; frame.origin.x -= delta / 2; frame.size.width += delta; [self.window setFrame:frame display:YES animate:YES]; self.window.minSize = NSMakeSize(1000, 650);
     [self openAppLauncher:nil];
