@@ -37,8 +37,8 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 @implementation SettingsSidebarView
 - (instancetype)initWithFrame:(NSRect)frame {
     if ((self = [super initWithFrame:frame])) {
-        self.material = NSVisualEffectMaterialSidebar; self.blendingMode = NSVisualEffectBlendingModeWithinWindow;
-        self.state = NSVisualEffectStateFollowsWindowActiveState; self.wantsLayer = YES;
+        self.material = NSVisualEffectMaterialSidebar; self.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+        self.state = NSVisualEffectStateFollowsWindowActiveState; self.emphasized = YES; self.wantsLayer = YES;
         self.layer.borderWidth = 0; self.layer.backgroundColor = NSColor.clearColor.CGColor;
     }
     return self;
@@ -48,7 +48,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 - (void)drawRect:(NSRect)dirtyRect {
     [super drawRect:dirtyRect];
     BOOL dark = [[[self effectiveAppearance] bestMatchFromAppearancesWithNames:@[NSAppearanceNameDarkAqua, NSAppearanceNameAqua]] isEqualToString:NSAppearanceNameDarkAqua];
-    [[NSColor colorWithRed:0.28 green:0.58 blue:1 alpha:dark ? 0.07 : 0.09] setFill]; NSRectFillUsingOperation(self.bounds, NSCompositingOperationSourceOver);
+    NSColor *top = [NSColor colorWithWhite:1 alpha:dark ? 0.035 : 0.16]; NSColor *bottom = [NSColor colorWithRed:0.28 green:0.58 blue:1 alpha:dark ? 0.045 : 0.07]; [[[NSGradient alloc] initWithStartingColor:top endingColor:bottom] drawInRect:self.bounds angle:-75];
     [[NSColor colorWithWhite:1 alpha:0.56] setStroke];
     NSBezierPath *edge = [NSBezierPath bezierPath]; [edge moveToPoint:NSMakePoint(NSMaxX(self.bounds)-0.5, 0)]; [edge lineToPoint:NSMakePoint(NSMaxX(self.bounds)-0.5, NSMaxY(self.bounds))]; [edge stroke];
 }
@@ -539,7 +539,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 
 - (void)buildConnectionPage:(NSView *)page {
     [self addPageHeading:@"连接" subtitle:@"管理 USB、Wi‑Fi 和无线调试连接。" to:page];
-    [page addSubview:[self card:NSMakeRect(0, 500, 1012, 110)]]; BrandArtworkView *mark = [[BrandArtworkView alloc] initWithFrame:NSMakeRect(30, 520, 72, 72)]; [page addSubview:mark];
+    [page addSubview:[self card:NSMakeRect(0, 500, 1012, 110)]]; PhonePreviewView *mark = [[PhonePreviewView alloc] initWithFrame:NSMakeRect(34, 505, 72, 98)]; [page addSubview:mark];
     self.connectionDeviceName = [self label:@"Android 手机" frame:NSMakeRect(122, 559, 420, 28)]; self.connectionDeviceName.font = [NSFont systemFontOfSize:21 weight:NSFontWeightBold]; [page addSubview:self.connectionDeviceName];
     self.connectionStateLabel = [self label:@"●  正在查找设备" frame:NSMakeRect(122, 532, 350, 24)]; self.connectionStateLabel.textColor = NSColor.systemOrangeColor; [page addSubview:self.connectionStateLabel];
     NSButton *refresh = [self button:@"刷新" frame:NSMakeRect(845, 535, 145, 38) action:@selector(refresh:)]; [page addSubview:refresh];
@@ -664,7 +664,8 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     NSArray *tools = @[@"截图", @"开始录屏", @"手机相机", @"新建镜像"];
     NSArray *toolSymbols = @[@"camera.fill", @"record.circle", @"camera.viewfinder", @"rectangle.on.rectangle"];
     SEL actions[] = {@selector(takeScreenshot:), @selector(toggleRecording:), @selector(startCamera:), @selector(startAdditionalMirror:)};
-    for (NSInteger i = 0; i < tools.count; i++) { NSButton *button = [self button:tools[i] frame:NSMakeRect(22+i*243, 474, 225, 56) action:actions[i]]; button.image = [NSImage imageWithSystemSymbolName:toolSymbols[i] accessibilityDescription:tools[i]]; button.imagePosition = NSImageLeading; button.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium]; if (i == 1) self.recordButton = button; [page addSubview:button]; }
+    for (NSInteger i = 0; i < tools.count; i++) { NSButton *button = [self button:tools[i] frame:NSMakeRect(30+i*237, 492, 216, 50) action:actions[i]]; button.image = [NSImage imageWithSystemSymbolName:toolSymbols[i] accessibilityDescription:tools[i]]; button.imagePosition = NSImageLeading; button.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium]; if (i == 1) self.recordButton = button; [page addSubview:button]; }
+    NSTextField *toolHint = [self label:@"这些操作会应用到当前连接的 Android 设备" frame:NSMakeRect(30, 450, 952, 22)]; toolHint.alignment = NSTextAlignmentCenter; toolHint.font = [NSFont systemFontOfSize:11]; toolHint.textColor = NSColor.secondaryLabelColor; [page addSubview:toolHint];
 
     [page addSubview:[self card:NSMakeRect(0, 205, 630, 205)]]; [self addCardTitle:@"快速控制" symbol:@"bolt.fill" x:22 y:368 to:page];
     NSArray *controls = @[@"返回", @"主页", @"最近", @"通知", @"音量−", @"音量+", @"锁屏"];
@@ -697,7 +698,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     [page addSubview:[self label:@"主题" frame:NSMakeRect(528, 222, 120, 24)]]; self.theme = [self pagePopup:@[@"跟随系统", @"浅色", @"深色"] frame:NSMakeRect(760, 218, 230, 30) action:@selector(changeTheme:)]; [self.theme selectItemAtIndex:[NSUserDefaults.standardUserDefaults integerForKey:@"ThemeMode"]]; [page addSubview:self.theme];
     NSButton *menuStats = [self pageSwitch:@"菜单栏显示设备状态" frame:NSMakeRect(528, 174, 462, 28) state:YES action:nil]; [page addSubview:menuStats];
 
-    [page addSubview:[self card:NSMakeRect(0, 18, 1012, 105)]]; [self addCardTitle:@"关于" symbol:@"info.circle.fill" x:22 y:80 to:page]; BrandArtworkView *icon = [[BrandArtworkView alloc] initWithFrame:NSMakeRect(190, 38, 55, 55)]; [page addSubview:icon]; NSTextField *about = [self label:@"Scrcpy Mate 10.2\n内置 scrcpy、adb 与开放源代码组件" frame:NSMakeRect(260, 42, 440, 48)]; about.maximumNumberOfLines = 2; about.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium]; [page addSubview:about]; NSButton *notices = [self button:@"开源项目致谢" frame:NSMakeRect(790, 48, 190, 34) action:@selector(showOpenSourceNotices:)]; [page addSubview:notices];
+    [page addSubview:[self card:NSMakeRect(0, 18, 1012, 105)]]; [self addCardTitle:@"关于" symbol:@"info.circle.fill" x:22 y:80 to:page]; BrandArtworkView *icon = [[BrandArtworkView alloc] initWithFrame:NSMakeRect(190, 38, 55, 55)]; [page addSubview:icon]; NSTextField *about = [self label:@"Scrcpy Mate 10.3\n内置 scrcpy、adb 与开放源代码组件" frame:NSMakeRect(260, 42, 440, 48)]; about.maximumNumberOfLines = 2; about.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium]; [page addSubview:about]; NSButton *notices = [self button:@"开源项目致谢" frame:NSMakeRect(790, 48, 190, 34) action:@selector(showOpenSourceNotices:)]; [page addSubview:notices];
 }
 
 - (void)audioRouteChanged:(NSSegmentedControl *)sender { NSInteger map[] = {0, 3, 1}; [self.audio selectItemAtIndex:map[sender.selectedSegment]]; [self mirrorSettingChanged:sender]; }
@@ -731,7 +732,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 700, 708)
         styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskFullSizeContentView
         backing:NSBackingStoreBuffered defer:NO];
-    self.window.title = @"Scrcpy Mate 10.2";
+    self.window.title = @"Scrcpy Mate 10.3";
     self.window.delegate = self;
     self.window.titlebarAppearsTransparent = YES; self.window.titleVisibility = NSWindowTitleHidden;
     self.window.backgroundColor = NSColor.clearColor;
@@ -753,7 +754,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 
     NSTextField *title = [self label:@"Scrcpy Mate" frame:NSMakeRect(88, 627, 300, 34)];
     title.font = [NSFont systemFontOfSize:26 weight:NSFontWeightBold]; [c addSubview:title];
-    NSTextField *version = [self label:@"10.2" frame:NSMakeRect(272, 635, 52, 20)]; version.font = [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightSemibold]; version.textColor = NSColor.secondaryLabelColor; version.alignment = NSTextAlignmentCenter; version.wantsLayer = YES; version.layer.cornerRadius = 8; version.layer.backgroundColor = [NSColor.controlBackgroundColor colorWithAlphaComponent:0.55].CGColor; [c addSubview:version];
+    NSTextField *version = [self label:@"10.3" frame:NSMakeRect(272, 635, 52, 20)]; version.font = [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightSemibold]; version.textColor = NSColor.secondaryLabelColor; version.alignment = NSTextAlignmentCenter; version.wantsLayer = YES; version.layer.cornerRadius = 8; version.layer.backgroundColor = [NSColor.controlBackgroundColor colorWithAlphaComponent:0.55].CGColor; [c addSubview:version];
     NSTextField *sub = [self label:@"让手机和 Mac 更自然地一起用" frame:NSMakeRect(89, 602, 350, 22)];
     sub.textColor = NSColor.secondaryLabelColor; [c addSubview:sub];
     self.language = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(445, 625, 95, 26) pullsDown:NO]; [self.language addItemsWithTitles:@[@"中文", @"English"]]; self.language.target = self; self.language.action = @selector(changeLanguage:); [c addSubview:self.language];
@@ -820,6 +821,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     self.englishUI = [NSUserDefaults.standardUserDefaults boolForKey:@"EnglishUI"];
     [self.language selectItemAtIndex:self.englishUI ? 1 : 0];
     [self rebuildStatusMenu];
+    [self setupMainMenu];
     NSInteger savedTheme = [NSUserDefaults.standardUserDefaults integerForKey:@"ThemeMode"];
     [self.theme selectItemAtIndex:MIN(MAX(savedTheme, 0), 2)]; [self changeTheme:self.theme];
     if (self.englishUI) [self applyLanguageToView:self.window.contentView];
@@ -845,6 +847,30 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     self.statusItem.button.target = self; self.statusItem.button.action = @selector(showStatusMenu:);
     [self.statusItem.button sendActionOn:NSEventMaskLeftMouseUp|NSEventMaskRightMouseUp];
     [self rebuildStatusMenu];
+}
+
+- (NSMenuItem *)mainMenuItem:(NSString *)title action:(SEL)action key:(NSString *)key modifiers:(NSEventModifierFlags)modifiers {
+    NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title action:action keyEquivalent:key ?: @""]; item.keyEquivalentModifierMask = modifiers; item.target = self; return item;
+}
+
+- (void)setupMainMenu {
+    NSString *(^L)(NSString *, NSString *) = ^NSString *(NSString *zh, NSString *en) { return self.englishUI ? en : zh; };
+    NSMenu *main = [NSMenu new];
+
+    NSMenuItem *appRoot = [[NSMenuItem alloc] initWithTitle:@"Scrcpy Mate" action:nil keyEquivalent:@""]; NSMenu *appMenu = [NSMenu new];
+    [appMenu addItem:[self mainMenuItem:L(@"关于 Scrcpy Mate", @"About Scrcpy Mate") action:@selector(openAdvancedFromMenu:) key:@"" modifiers:0]];
+    [appMenu addItem:NSMenuItem.separatorItem]; [appMenu addItem:[self mainMenuItem:L(@"设置…", @"Settings…") action:@selector(openAdvancedFromMenu:) key:@"," modifiers:NSEventModifierFlagCommand]];
+    [appMenu addItem:NSMenuItem.separatorItem]; NSMenuItem *hide=[self mainMenuItem:L(@"隐藏 Scrcpy Mate", @"Hide Scrcpy Mate") action:@selector(hide:) key:@"h" modifiers:NSEventModifierFlagCommand]; hide.target=NSApp; [appMenu addItem:hide]; NSMenuItem *hideOthers=[self mainMenuItem:L(@"隐藏其他", @"Hide Others") action:@selector(hideOtherApplications:) key:@"h" modifiers:NSEventModifierFlagCommand|NSEventModifierFlagOption]; hideOthers.target=NSApp; [appMenu addItem:hideOthers]; NSMenuItem *showAll=[self mainMenuItem:L(@"全部显示", @"Show All") action:@selector(unhideAllApplications:) key:@"" modifiers:0]; showAll.target=NSApp; [appMenu addItem:showAll];
+    [appMenu addItem:NSMenuItem.separatorItem]; NSMenuItem *quit=[self mainMenuItem:L(@"退出 Scrcpy Mate", @"Quit Scrcpy Mate") action:@selector(terminate:) key:@"q" modifiers:NSEventModifierFlagCommand]; quit.target=NSApp; [appMenu addItem:quit]; appRoot.submenu=appMenu; [main addItem:appRoot];
+
+    NSMenuItem *deviceRoot=[[NSMenuItem alloc] initWithTitle:L(@"设备", @"Device") action:nil keyEquivalent:@""]; NSMenu *device=[NSMenu new]; [device addItem:[self mainMenuItem:L(@"刷新设备", @"Refresh Devices") action:@selector(refresh:) key:@"r" modifiers:NSEventModifierFlagCommand]]; [device addItem:[self mainMenuItem:L(@"开始／停止镜像", @"Start / Stop Mirroring") action:@selector(toggleMirror:) key:@"s" modifiers:NSEventModifierFlagCommand|NSEventModifierFlagShift]]; [device addItem:[self mainMenuItem:L(@"无线镜像", @"Wireless Mirroring") action:@selector(startWirelessMirror:) key:@"w" modifiers:NSEventModifierFlagCommand|NSEventModifierFlagShift]]; deviceRoot.submenu=device; [main addItem:deviceRoot];
+
+    NSMenuItem *toolsRoot=[[NSMenuItem alloc] initWithTitle:L(@"工具", @"Tools") action:nil keyEquivalent:@""]; NSMenu *tools=[NSMenu new]; [tools addItem:[self mainMenuItem:L(@"打开工具箱", @"Open Toolbox") action:@selector(openToolboxFromMenu:) key:@"t" modifiers:NSEventModifierFlagCommand|NSEventModifierFlagShift]]; [tools addItem:NSMenuItem.separatorItem]; [tools addItem:[self mainMenuItem:L(@"截图", @"Screenshot") action:@selector(takeScreenshot:) key:@"" modifiers:0]]; [tools addItem:[self mainMenuItem:L(@"开始／停止录屏", @"Start / Stop Recording") action:@selector(toggleRecording:) key:@"" modifiers:0]]; [tools addItem:[self mainMenuItem:L(@"手机相机", @"Phone Camera") action:@selector(startCamera:) key:@"" modifiers:0]]; [tools addItem:[self mainMenuItem:L(@"新建镜像", @"New Mirror") action:@selector(startAdditionalMirror:) key:@"" modifiers:0]]; [tools addItem:NSMenuItem.separatorItem]; [tools addItem:[self mainMenuItem:L(@"镜像快捷键…", @"Mirroring Shortcuts…") action:@selector(showShortcuts:) key:@"/" modifiers:NSEventModifierFlagCommand]]; toolsRoot.submenu=tools; [main addItem:toolsRoot];
+
+    NSMenuItem *viewRoot=[[NSMenuItem alloc] initWithTitle:L(@"视图", @"View") action:nil keyEquivalent:@""]; NSMenu *view=[NSMenu new]; NSArray *viewTitles=self.englishUI ? @[@"Overview",@"Connection",@"Display & Input",@"Audio & Camera",@"File Transfer",@"Apps",@"Toolbox",@"Advanced"] : @[@"概览",@"连接设置",@"画面与输入",@"声音与摄像头",@"文件传输",@"应用",@"工具箱",@"高级设置"]; for (NSInteger i=0;i<viewTitles.count;i++){ NSMenuItem *item=[self mainMenuItem:viewTitles[i] action:@selector(selectSectionFromMenu:) key:[NSString stringWithFormat:@"%ld",(long)i+1] modifiers:NSEventModifierFlagCommand]; item.tag=i; [view addItem:item]; } viewRoot.submenu=view; [main addItem:viewRoot];
+
+    NSMenuItem *helpRoot=[[NSMenuItem alloc] initWithTitle:L(@"帮助", @"Help") action:nil keyEquivalent:@""]; NSMenu *help=[NSMenu new]; [help addItem:[self mainMenuItem:L(@"快捷键与安全", @"Shortcuts & Safety") action:@selector(showShortcuts:) key:@"" modifiers:0]]; [help addItem:[self mainMenuItem:L(@"开源项目致谢", @"Open-source Acknowledgements") action:@selector(showOpenSourceNotices:) key:@"" modifiers:0]]; helpRoot.submenu=help; [main addItem:helpRoot];
+    NSApp.mainMenu = main;
 }
 
 - (void)showStatusMenu:(id)sender {
@@ -885,6 +911,16 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
 - (void)openToolboxFromMenu:(id)sender {
     [NSApp activateIgnoringOtherApps:YES]; [self.window makeKeyAndOrderFront:nil];
     if (self.sidebarButtons.count > 6) [self selectSettingsSection:self.sidebarButtons[6]];
+}
+
+- (void)selectSectionFromMenu:(NSMenuItem *)sender {
+    [NSApp activateIgnoringOtherApps:YES]; [self.window makeKeyAndOrderFront:nil]; self.sidebarSearch.stringValue = @""; [self filterSidebar:self.sidebarSearch];
+    if (sender.tag >= 0 && sender.tag < self.sidebarButtons.count) [self selectSettingsSection:self.sidebarButtons[sender.tag]];
+}
+
+- (void)openAdvancedFromMenu:(id)sender {
+    [NSApp activateIgnoringOtherApps:YES]; [self.window makeKeyAndOrderFront:nil]; self.sidebarSearch.stringValue = @""; [self filterSidebar:self.sidebarSearch];
+    if (self.sidebarButtons.count > 7) [self selectSettingsSection:self.sidebarButtons[7]];
 }
 
 - (void)toggleInputLanguage:(id)sender {
@@ -944,8 +980,8 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
         @"管理 USB、Wi‑Fi 和无线调试连接。":@"Manage USB, Wi-Fi and wireless debugging connections.", @"连接方式":@"Connection Method", @"设备 IP 地址":@"Device IP address", @"无线调试":@"Wireless Debugging", @"使用手机扫描二维码进行配对":@"Scan the QR code with your phone to pair", @"配对":@"Pair", @"●  等待手机扫描":@"●  Waiting for phone scan", @"自动连接":@"Automatic Connection", @"USB 连接后验证 Wi‑Fi":@"Verify Wi-Fi after USB connection", @"记住此设备":@"Remember this device", @"最近的设备":@"Recent Devices",
         @"调整镜像画面、DeX 桌面和电脑输入。":@"Adjust mirror display, DeX desktop and computer input.", @"显示":@"Display", @"分辨率":@"Resolution", @"帧率":@"Frame rate", @"画面质量":@"Image quality", @"文字大小":@"Text size", @"启用 DeX 桌面":@"Enable DeX desktop", @"画面比例":@"Aspect ratio", @"动态窗口大小":@"Dynamic window size", @"根据 DeX 桌面内容自动调整窗口大小。":@"Automatically fit the window to DeX desktop content.", @"输入":@"Input", @"键盘模式":@"Keyboard mode", @"窗口":@"Window", @"快捷操作":@"Shortcuts",
         @"在 Mac 与 Android 设备之间管理和传输文件。":@"Manage and transfer files between Mac and Android.", @"Mac 路径":@"Mac path", @"手机路径":@"Phone path", @"准备传输":@"Ready to transfer", @"将文件拖到此处上传到手机":@"Drop files here to upload to your phone",
-        @"快速查找并在镜像窗口中打开手机应用。":@"Find and open phone apps in the mirror window.", @"搜索应用":@"Search apps", @"应用库":@"App Library", @"启动方式":@"Launch Mode", @"使用提示":@"Tips", @"双击应用即可启动。\n抖音、微信等竖屏应用会自动使用合适的显示比例。":@"Double-click an app to launch it.\nPortrait apps automatically use a suitable aspect ratio.", @"常用 Android 操作集中在一个页面中。":@"All common Android actions in one place.", @"通讯与剪贴板":@"Communication & Clipboard", @"快捷键与安全":@"Shortcuts & Safety", @"查看全部快捷键":@"View All Shortcuts",
-        @"调整性能、连接恢复和应用行为。":@"Adjust performance, connection recovery and app behaviour.", @"性能":@"Performance", @"性能配置":@"Performance profile", @"视频码率":@"Video bitrate", @"音频缓冲":@"Audio buffer", @"连接恢复":@"Connection Recovery", @"断线后自动重试":@"Retry automatically after disconnect", @"最大重试次数":@"Maximum retries", @"重试间隔":@"Retry interval", @"输入安全":@"Input Safety", @"鼠标直通（实验性）":@"Mouse passthrough (experimental)", @"手柄直通（实验性）":@"Gamepad passthrough (experimental)", @"实验性直通可能占用 Mac 输入。紧急停止：⌃⌥⌘Esc":@"Experimental passthrough may capture Mac input. Emergency stop: ⌃⌥⌘Esc", @"外观与行为":@"Appearance & Behaviour", @"语言":@"Language", @"主题":@"Theme", @"菜单栏显示设备状态":@"Show device status in menu bar", @"关于":@"About", @"开源项目致谢":@"Open-source Acknowledgements", @"选择文件…":@"Choose Files…", @"Scrcpy Mate 10.2\n内置 scrcpy、adb 与开放源代码组件":@"Scrcpy Mate 10.2\nIncludes scrcpy, adb and open-source components"
+        @"快速查找并在镜像窗口中打开手机应用。":@"Find and open phone apps in the mirror window.", @"搜索应用":@"Search apps", @"应用库":@"App Library", @"启动方式":@"Launch Mode", @"使用提示":@"Tips", @"双击应用即可启动。\n抖音、微信等竖屏应用会自动使用合适的显示比例。":@"Double-click an app to launch it.\nPortrait apps automatically use a suitable aspect ratio.", @"常用 Android 操作集中在一个页面中。":@"All common Android actions in one place.", @"这些操作会应用到当前连接的 Android 设备":@"These actions apply to the currently connected Android device", @"通讯与剪贴板":@"Communication & Clipboard", @"快捷键与安全":@"Shortcuts & Safety", @"查看全部快捷键":@"View All Shortcuts",
+        @"调整性能、连接恢复和应用行为。":@"Adjust performance, connection recovery and app behaviour.", @"性能":@"Performance", @"性能配置":@"Performance profile", @"视频码率":@"Video bitrate", @"音频缓冲":@"Audio buffer", @"连接恢复":@"Connection Recovery", @"断线后自动重试":@"Retry automatically after disconnect", @"最大重试次数":@"Maximum retries", @"重试间隔":@"Retry interval", @"输入安全":@"Input Safety", @"鼠标直通（实验性）":@"Mouse passthrough (experimental)", @"手柄直通（实验性）":@"Gamepad passthrough (experimental)", @"实验性直通可能占用 Mac 输入。紧急停止：⌃⌥⌘Esc":@"Experimental passthrough may capture Mac input. Emergency stop: ⌃⌥⌘Esc", @"外观与行为":@"Appearance & Behaviour", @"语言":@"Language", @"主题":@"Theme", @"菜单栏显示设备状态":@"Show device status in menu bar", @"关于":@"About", @"开源项目致谢":@"Open-source Acknowledgements", @"选择文件…":@"Choose Files…", @"Scrcpy Mate 10.3\n内置 scrcpy、adb 与开放源代码组件":@"Scrcpy Mate 10.3\nIncludes scrcpy, adb and open-source components"
     };
 }
 
@@ -972,6 +1008,7 @@ static OSStatus ScrcpyMateHotKeyHandler(EventHandlerCallRef nextHandler, EventRe
     [self applyLanguageToView:self.window.contentView];
     self.sidebarSearch.placeholderString = self.englishUI ? @"Search settings" : @"搜索设置";
     [self rebuildStatusMenu];
+    [self setupMainMenu];
     [self updateDeviceStats:nil];
 }
 
